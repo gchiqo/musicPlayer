@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Resonance</string>
+    <string name="permission_title">Let the music in</string>
+    <string name="permission_message">Resonance needs access to the audio files on your device to play them.</string>
+    <string name="permission_grant">Grant access</string>
+    <string name="permission_settings">Open settings</string>
+    <string name="empty_title">No tracks found</string>
+    <string name="empty_message">Add some music to your device and pull to refresh.</string>
+</resources>
