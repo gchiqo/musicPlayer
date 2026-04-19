@@ -68,6 +68,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _showPlayer = MutableStateFlow(false)
     val showPlayer: StateFlow<Boolean> = _showPlayer.asStateFlow()
 
+    private val _showEqualizer = MutableStateFlow(false)
+    val showEqualizer: StateFlow<Boolean> = _showEqualizer.asStateFlow()
+
     private val _sortBy = MutableStateFlow(SortBy.Title)
     val sortBy: StateFlow<SortBy> = _sortBy.asStateFlow()
 
@@ -230,6 +233,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openPlayer() { _showPlayer.value = true }
     fun closePlayer() { _showPlayer.value = false }
+
+    fun openEqualizer() { _showEqualizer.value = true }
+    fun closeEqualizer() { _showEqualizer.value = false }
 
     fun setSort(sort: SortBy) { _sortBy.value = sort }
     fun setViewMode(mode: ViewMode) { _viewMode.value = mode }

@@ -17,8 +17,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
@@ -71,6 +71,7 @@ fun PlayerScreen(
     onSeek: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    onOpenEqualizer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gradient = remember(song.id) {
@@ -93,7 +94,7 @@ fun PlayerScreen(
                 .padding(contentPadding)
                 .padding(horizontal = 24.dp),
         ) {
-            TopBar(onClose = onClose)
+            TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
             Spacer(Modifier.height(8.dp))
             HeroArtwork(
                 song = song,
@@ -152,7 +153,10 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun TopBar(onClose: () -> Unit) {
+private fun TopBar(
+    onClose: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -174,10 +178,10 @@ private fun TopBar(onClose: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = {}) {
+        IconButton(onClick = onOpenEqualizer) {
             Icon(
-                imageVector = Icons.Rounded.MoreVert,
-                contentDescription = null,
+                imageVector = Icons.Rounded.Tune,
+                contentDescription = "Equalizer",
                 tint = MaterialTheme.colorScheme.onBackground,
             )
         }

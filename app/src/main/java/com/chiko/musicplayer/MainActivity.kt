@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chiko.musicplayer.ui.MusicViewModel
 import com.chiko.musicplayer.ui.components.MiniPlayer
+import com.chiko.musicplayer.ui.screens.EqualizerScreen
 import com.chiko.musicplayer.ui.screens.HomeScreen
 import com.chiko.musicplayer.ui.screens.PermissionScreen
 import com.chiko.musicplayer.ui.screens.PlayerScreen
@@ -120,14 +121,16 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val shuffle by viewModel.shuffle.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
     val showPlayer by viewModel.showPlayer.collectAsState()
+    val showEqualizer by viewModel.showEqualizer.collectAsState()
     val searchActive by viewModel.searchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSong = allSongs.firstOrNull { it.id == currentId }
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
-    BackHandler(enabled = showPlayer) { viewModel.closePlayer() }
-    BackHandler(enabled = !showPlayer && searchActive) { viewModel.closeSearch() }
-    BackHandler(enabled = !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
+    BackHandler(enabled = showEqualizer) { viewModel.closeEqualizer() }
+    BackHandler(enabled = !showEqualizer && showPlayer) { viewModel.closePlayer() }
+    BackHandler(enabled = !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
+    BackHandler(enabled = !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreen(
@@ -189,8 +192,21 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                     onSeek = { viewModel.seekTo(it) },
                     onToggleShuffle = { viewModel.toggleShuffle() },
                     onCycleRepeat = { viewModel.cycleRepeat() },
+                    onOpenEqualizer = { viewModel.openEqualizer() },
                 )
             }
+        }
+
+        AnimatedVisibility(
+            visible = showEqualizer,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            EqualizerScreen(
+                contentPadding = scaffoldPadding,
+                onClose = { viewModel.closeEqualizer() },
+            )
         }
     }
 }
