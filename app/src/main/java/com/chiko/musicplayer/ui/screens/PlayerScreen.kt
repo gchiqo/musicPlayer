@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Tune
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,10 +45,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +70,7 @@ fun PlayerScreen(
     durationMs: Long,
     shuffle: Boolean,
     repeatMode: Int,
+    playbackSpeed: Float,
     contentPadding: PaddingValues,
     onClose: () -> Unit,
     onPlayPause: () -> Unit,
@@ -74,6 +80,8 @@ fun PlayerScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onOpenEqualizer: () -> Unit,
+    onOpenVisualizer: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gradient = remember(song.id) {
@@ -110,7 +118,11 @@ fun PlayerScreen(
             )
             if (isWide) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
+                    TopBar(
+                        onClose = onClose,
+                        onOpenEqualizer = onOpenEqualizer,
+                        onOpenVisualizer = onOpenVisualizer,
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -150,6 +162,8 @@ fun PlayerScreen(
                             ProgressSection(
                                 positionMs = effectivePosition,
                                 durationMs = durationMs,
+                                playbackSpeed = playbackSpeed,
+                                onSpeedChange = onSpeedChange,
                                 onSeekStart = sliderCallbacks.onSeekStart,
                                 onSeekChange = sliderCallbacks.onSeekChange,
                                 onSeekEnd = sliderCallbacks.onSeekEnd,
@@ -170,7 +184,11 @@ fun PlayerScreen(
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
+                    TopBar(
+                        onClose = onClose,
+                        onOpenEqualizer = onOpenEqualizer,
+                        onOpenVisualizer = onOpenVisualizer,
+                    )
                     Spacer(Modifier.height(8.dp))
                     HeroArtwork(
                         song = song,
@@ -203,6 +221,8 @@ fun PlayerScreen(
                     ProgressSection(
                         positionMs = effectivePosition,
                         durationMs = durationMs,
+                        playbackSpeed = playbackSpeed,
+                        onSpeedChange = onSpeedChange,
                         onSeekStart = sliderCallbacks.onSeekStart,
                         onSeekChange = sliderCallbacks.onSeekChange,
                         onSeekEnd = sliderCallbacks.onSeekEnd,
@@ -235,6 +255,7 @@ private data class SliderCallbacks(
 private fun TopBar(
     onClose: () -> Unit,
     onOpenEqualizer: () -> Unit,
+    onOpenVisualizer: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -257,6 +278,13 @@ private fun TopBar(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onOpenVisualizer) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = "Visualizer",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
         IconButton(onClick = onOpenEqualizer) {
             Icon(
                 imageVector = Icons.Rounded.Tune,
@@ -305,6 +333,8 @@ private fun HeroArtwork(
 private fun ProgressSection(
     positionMs: Long,
     durationMs: Long,
+    playbackSpeed: Float,
+    onSpeedChange: (Float) -> Unit,
     onSeekStart: () -> Unit,
     onSeekChange: (Float) -> Unit,
     onSeekEnd: () -> Unit,
@@ -326,19 +356,71 @@ private fun ProgressSection(
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = positionMs.formatDuration(),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.weight(1f))
+        SpeedChip(speed = playbackSpeed, onChange = onSpeedChange)
+        Spacer(Modifier.weight(1f))
         Text(
             text = durationMs.formatDuration(),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+private fun SpeedChip(
+    speed: Float,
+    onChange: (Float) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = speed.formatSpeed(),
+                style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
+                color = if (speed == 1.0f) MaterialTheme.colorScheme.onSurface else NeonViolet,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f).forEach { s ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = s.formatSpeed(),
+                            color = if (s == speed) NeonViolet else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    onClick = {
+                        onChange(s)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun Float.formatSpeed(): String {
+    val s = "%.2f".format(this).trimEnd('0').trimEnd('.')
+    return "${s}×"
 }
 
 @Composable

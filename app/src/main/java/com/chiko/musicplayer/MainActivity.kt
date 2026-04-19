@@ -40,6 +40,7 @@ import com.chiko.musicplayer.ui.screens.EqualizerScreen
 import com.chiko.musicplayer.ui.screens.HomeScreen
 import com.chiko.musicplayer.ui.screens.PermissionScreen
 import com.chiko.musicplayer.ui.screens.PlayerScreen
+import com.chiko.musicplayer.ui.screens.VisualizerScreen
 import com.chiko.musicplayer.ui.theme.MusicPlayerTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
@@ -123,17 +124,20 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val durationMs by viewModel.durationMs.collectAsState()
     val shuffle by viewModel.shuffle.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
+    val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val showPlayer by viewModel.showPlayer.collectAsState()
     val showEqualizer by viewModel.showEqualizer.collectAsState()
+    val showVisualizer by viewModel.showVisualizer.collectAsState()
     val searchActive by viewModel.searchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentSong = allSongs.firstOrNull { it.id == currentId }
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
-    BackHandler(enabled = showEqualizer) { viewModel.closeEqualizer() }
-    BackHandler(enabled = !showEqualizer && showPlayer) { viewModel.closePlayer() }
-    BackHandler(enabled = !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
-    BackHandler(enabled = !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
+    BackHandler(enabled = showVisualizer) { viewModel.closeVisualizer() }
+    BackHandler(enabled = !showVisualizer && showEqualizer) { viewModel.closeEqualizer() }
+    BackHandler(enabled = !showVisualizer && !showEqualizer && showPlayer) { viewModel.closePlayer() }
+    BackHandler(enabled = !showVisualizer && !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
+    BackHandler(enabled = !showVisualizer && !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreen(
@@ -189,6 +193,7 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                     durationMs = durationMs,
                     shuffle = shuffle,
                     repeatMode = repeatMode,
+                    playbackSpeed = playbackSpeed,
                     contentPadding = scaffoldPadding,
                     onClose = { viewModel.closePlayer() },
                     onPlayPause = { viewModel.togglePlayPause() },
@@ -198,6 +203,8 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                     onToggleShuffle = { viewModel.toggleShuffle() },
                     onCycleRepeat = { viewModel.cycleRepeat() },
                     onOpenEqualizer = { viewModel.openEqualizer() },
+                    onOpenVisualizer = { viewModel.openVisualizer() },
+                    onSpeedChange = { viewModel.setPlaybackSpeed(it) },
                 )
             }
         }
@@ -211,6 +218,18 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             EqualizerScreen(
                 contentPadding = scaffoldPadding,
                 onClose = { viewModel.closeEqualizer() },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showVisualizer,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            VisualizerScreen(
+                contentPadding = scaffoldPadding,
+                onClose = { viewModel.closeVisualizer() },
             )
         }
     }

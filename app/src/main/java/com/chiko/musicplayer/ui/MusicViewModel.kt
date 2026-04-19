@@ -5,6 +5,7 @@ import android.content.ComponentName
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -65,11 +66,17 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
     private val _showPlayer = MutableStateFlow(false)
     val showPlayer: StateFlow<Boolean> = _showPlayer.asStateFlow()
 
     private val _showEqualizer = MutableStateFlow(false)
     val showEqualizer: StateFlow<Boolean> = _showEqualizer.asStateFlow()
+
+    private val _showVisualizer = MutableStateFlow(false)
+    val showVisualizer: StateFlow<Boolean> = _showVisualizer.asStateFlow()
 
     private val _sortBy = MutableStateFlow(SortBy.Title)
     val sortBy: StateFlow<SortBy> = _sortBy.asStateFlow()
@@ -137,6 +144,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         override fun onRepeatModeChanged(mode: Int) {
             _repeatMode.value = mode
         }
+
+        override fun onPlaybackParametersChanged(params: PlaybackParameters) {
+            _playbackSpeed.value = params.speed
+        }
     }
 
     fun connect() {
@@ -153,6 +164,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 _durationMs.value = c.duration.coerceAtLeast(0L)
                 _shuffle.value = c.shuffleModeEnabled
                 _repeatMode.value = c.repeatMode
+                _playbackSpeed.value = c.playbackParameters.speed
             }
             startPositionLoop()
         }, MoreExecutors.directExecutor())
@@ -231,11 +243,20 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        val s = speed.coerceIn(0.25f, 2.0f)
+        controller?.setPlaybackSpeed(s)
+        _playbackSpeed.value = s
+    }
+
     fun openPlayer() { _showPlayer.value = true }
     fun closePlayer() { _showPlayer.value = false }
 
     fun openEqualizer() { _showEqualizer.value = true }
     fun closeEqualizer() { _showEqualizer.value = false }
+
+    fun openVisualizer() { _showVisualizer.value = true }
+    fun closeVisualizer() { _showVisualizer.value = false }
 
     fun setSort(sort: SortBy) { _sortBy.value = sort }
     fun setViewMode(mode: ViewMode) { _viewMode.value = mode }
