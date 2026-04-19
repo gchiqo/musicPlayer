@@ -2,9 +2,9 @@ package com.chiko.musicplayer.data
 
 import android.content.ContentUris
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import com.chiko.musicplayer.image.songArtUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -54,7 +54,7 @@ class MusicRepository(private val context: Context) {
                     albumId = albumId,
                     durationMs = cursor.getLong(durationCol),
                     uri = ContentUris.withAppendedId(collection, id),
-                    artworkUri = ContentUris.withAppendedId(ARTWORK_URI, albumId),
+                    artworkUri = songArtUri(id),
                     folderId = folderId,
                     folderName = folderName,
                     dateAddedSec = cursor.getLong(dateAddedCol),
@@ -82,7 +82,4 @@ class MusicRepository(private val context: Context) {
         return 0L to "Unknown"
     }
 
-    private companion object {
-        val ARTWORK_URI: Uri = Uri.parse("content://media/external/audio/albumart")
-    }
 }

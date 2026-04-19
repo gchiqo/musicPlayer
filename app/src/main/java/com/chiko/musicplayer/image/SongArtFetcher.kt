@@ -2,7 +2,6 @@ package com.chiko.musicplayer.image
 
 import android.content.ContentUris
 import android.content.Context
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import coil.ImageLoader
 import coil.decode.DataSource
@@ -12,6 +11,7 @@ import coil.fetch.Fetcher
 import coil.fetch.SourceResult
 import coil.key.Keyer
 import coil.request.Options
+import com.chiko.musicplayer.audio.extractEmbeddedPicture
 import com.chiko.musicplayer.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,7 +25,7 @@ class SongArtFetcher(
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? = withContext(Dispatchers.IO) {
-        embeddedPicture()?.let { bytes ->
+        extractEmbeddedPicture(context, song.uri)?.let { bytes ->
             return@withContext SourceResult(
                 source = ImageSource(Buffer().apply { write(bytes) }, context),
                 mimeType = null,
@@ -33,18 +33,6 @@ class SongArtFetcher(
             )
         }
         albumArt()
-    }
-
-    private fun embeddedPicture(): ByteArray? {
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(context, song.uri)
-            retriever.embeddedPicture
-        } catch (_: Exception) {
-            null
-        } finally {
-            try { retriever.release() } catch (_: Exception) {}
-        }
     }
 
     private fun albumArt(): SourceResult? {

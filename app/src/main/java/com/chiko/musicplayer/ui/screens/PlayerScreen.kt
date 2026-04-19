@@ -3,16 +3,19 @@ package com.chiko.musicplayer.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,7 +53,6 @@ import androidx.media3.common.Player
 import com.chiko.musicplayer.data.Song
 import com.chiko.musicplayer.ui.components.Artwork
 import com.chiko.musicplayer.ui.components.formatDuration
-import com.chiko.musicplayer.ui.theme.NeonPink
 import com.chiko.musicplayer.ui.theme.NeonViolet
 
 private val ArtworkCorner = 32.dp
@@ -76,7 +78,7 @@ fun PlayerScreen(
 ) {
     val gradient = remember(song.id) {
         Brush.verticalGradient(
-            listOf(NeonViolet.copy(alpha = 0.55f), NeonPink.copy(alpha = 0.25f), Color(0xFF0A0118))
+            listOf(NeonViolet.copy(alpha = 0.35f), Color.Black, Color.Black)
         )
     }
     var sliderInteracting by remember { mutableStateOf(false) }
@@ -88,45 +90,14 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(gradient),
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding)
                 .padding(horizontal = 24.dp),
         ) {
-            TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
-            Spacer(Modifier.height(8.dp))
-            HeroArtwork(
-                song = song,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .padding(horizontal = 16.dp),
-            )
-            Spacer(Modifier.height(36.dp))
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(28.dp))
-            ProgressSection(
-                positionMs = effectivePosition,
-                durationMs = durationMs,
+            val isWide = maxWidth >= 600.dp
+            val sliderCallbacks = SliderCallbacks(
                 onSeekStart = {
                     sliderInteracting = true
                     sliderValue = positionMs.toFloat()
@@ -137,20 +108,128 @@ fun PlayerScreen(
                     sliderInteracting = false
                 },
             )
-            Spacer(Modifier.height(20.dp))
-            Controls(
-                isPlaying = isPlaying,
-                shuffle = shuffle,
-                repeatMode = repeatMode,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                onPrevious = onPrevious,
-                onToggleShuffle = onToggleShuffle,
-                onCycleRepeat = onCycleRepeat,
-            )
+            if (isWide) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(32.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HeroArtwork(
+                            song = song,
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(vertical = 12.dp),
+                        ) {
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            ProgressSection(
+                                positionMs = effectivePosition,
+                                durationMs = durationMs,
+                                onSeekStart = sliderCallbacks.onSeekStart,
+                                onSeekChange = sliderCallbacks.onSeekChange,
+                                onSeekEnd = sliderCallbacks.onSeekEnd,
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            Controls(
+                                isPlaying = isPlaying,
+                                shuffle = shuffle,
+                                repeatMode = repeatMode,
+                                onPlayPause = onPlayPause,
+                                onNext = onNext,
+                                onPrevious = onPrevious,
+                                onToggleShuffle = onToggleShuffle,
+                                onCycleRepeat = onCycleRepeat,
+                            )
+                        }
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TopBar(onClose = onClose, onOpenEqualizer = onOpenEqualizer)
+                    Spacer(Modifier.height(8.dp))
+                    HeroArtwork(
+                        song = song,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .padding(horizontal = 16.dp),
+                    )
+                    Spacer(Modifier.height(28.dp))
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    ProgressSection(
+                        positionMs = effectivePosition,
+                        durationMs = durationMs,
+                        onSeekStart = sliderCallbacks.onSeekStart,
+                        onSeekChange = sliderCallbacks.onSeekChange,
+                        onSeekEnd = sliderCallbacks.onSeekEnd,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Controls(
+                        isPlaying = isPlaying,
+                        shuffle = shuffle,
+                        repeatMode = repeatMode,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        onPrevious = onPrevious,
+                        onToggleShuffle = onToggleShuffle,
+                        onCycleRepeat = onCycleRepeat,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
         }
     }
 }
+
+private data class SliderCallbacks(
+    val onSeekStart: () -> Unit,
+    val onSeekChange: (Float) -> Unit,
+    val onSeekEnd: () -> Unit,
+)
 
 @Composable
 private fun TopBar(
@@ -298,7 +377,7 @@ private fun Controls(
             modifier = Modifier
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(NeonViolet, NeonPink))),
+                .background(NeonViolet),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(onClick = onPlayPause, modifier = Modifier.fillMaxSize()) {

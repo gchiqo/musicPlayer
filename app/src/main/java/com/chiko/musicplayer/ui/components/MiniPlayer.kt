@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiko.musicplayer.data.Song
-import com.chiko.musicplayer.ui.theme.NeonPink
 import com.chiko.musicplayer.ui.theme.NeonViolet
 import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
@@ -59,7 +58,7 @@ fun MiniPlayer(
     ) {
         if (song == null) return@AnimatedVisibility
         val gradient = Brush.horizontalGradient(
-            listOf(SurfaceCardElevated, NeonViolet.copy(alpha = 0.18f), NeonPink.copy(alpha = 0.18f))
+            listOf(SurfaceCardElevated, SurfaceCardElevated.copy(alpha = 0.85f))
         )
         Column(
             modifier = Modifier

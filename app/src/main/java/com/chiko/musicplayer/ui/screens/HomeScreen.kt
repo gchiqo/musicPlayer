@@ -1,5 +1,6 @@
 package com.chiko.musicplayer.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -28,7 +31,6 @@ import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,14 +52,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.chiko.musicplayer.R
 import com.chiko.musicplayer.data.Folder
 import com.chiko.musicplayer.data.Song
 import com.chiko.musicplayer.ui.LibraryTab
@@ -68,7 +72,6 @@ import com.chiko.musicplayer.ui.components.FolderRow
 import com.chiko.musicplayer.ui.components.SongGridItem
 import com.chiko.musicplayer.ui.components.SongRow
 import com.chiko.musicplayer.ui.theme.AppGradient
-import com.chiko.musicplayer.ui.theme.NeonPink
 import com.chiko.musicplayer.ui.theme.NeonViolet
 
 @Composable
@@ -96,6 +99,9 @@ fun HomeScreen(
     onSongClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isCompactHeight = LocalConfiguration.current.screenHeightDp < 500
+    val showSort = selectedFolder != null || tab == LibraryTab.Songs
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -112,25 +118,51 @@ fun HomeScreen(
                     onQueryChange = onSearchQueryChange,
                     onClose = onCloseSearch,
                 )
-                selectedFolder != null -> FolderHeader(
+                isCompactHeight && selectedFolder != null -> CompactFolderHeader(
                     folder = selectedFolder,
                     onBack = onFolderBack,
+                    viewMode = viewMode,
+                    onToggleViewMode = onToggleViewMode,
+                    sortBy = sortBy,
+                    onSortChange = onSortChange,
+                    onOpenSearch = onOpenSearch,
                 )
+                isCompactHeight -> CompactBrowseHeader(
+                    tab = tab,
+                    onTabChange = onTabChange,
+                    viewMode = viewMode,
+                    onToggleViewMode = onToggleViewMode,
+                    sortBy = sortBy,
+                    onSortChange = onSortChange,
+                    onOpenSearch = onOpenSearch,
+                    showSort = showSort,
+                )
+                selectedFolder != null -> {
+                    FolderHeader(folder = selectedFolder, onBack = onFolderBack)
+                    ToolbarRow(
+                        viewMode = viewMode,
+                        onToggleViewMode = onToggleViewMode,
+                        sortBy = sortBy,
+                        onSortChange = onSortChange,
+                        showSort = true,
+                        showSearch = true,
+                        onOpenSearch = onOpenSearch,
+                    )
+                }
                 else -> {
                     AppHeader(songCount = songs.size)
                     LibraryTabs(tab = tab, onTabChange = onTabChange)
+                    ToolbarRow(
+                        viewMode = viewMode,
+                        onToggleViewMode = onToggleViewMode,
+                        sortBy = sortBy,
+                        onSortChange = onSortChange,
+                        showSort = showSort,
+                        showSearch = true,
+                        onOpenSearch = onOpenSearch,
+                    )
                 }
             }
-
-            ToolbarRow(
-                viewMode = viewMode,
-                onToggleViewMode = onToggleViewMode,
-                sortBy = sortBy,
-                onSortChange = onSortChange,
-                showSort = selectedFolder != null || tab == LibraryTab.Songs,
-                showSearch = !searchActive,
-                onOpenSearch = onOpenSearch,
-            )
 
             when {
                 isLoading -> LoadingState()
@@ -214,37 +246,155 @@ private fun SearchBar(
 }
 
 @Composable
+private fun CompactBrowseHeader(
+    tab: LibraryTab,
+    onTabChange: (LibraryTab) -> Unit,
+    viewMode: ViewMode,
+    onToggleViewMode: () -> Unit,
+    sortBy: SortBy,
+    onSortChange: (SortBy) -> Unit,
+    onOpenSearch: () -> Unit,
+    showSort: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_brand_logo),
+            contentDescription = null,
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(8.dp)),
+        )
+        Spacer(Modifier.width(10.dp))
+        CompactTab(
+            label = "Songs",
+            selected = tab == LibraryTab.Songs,
+            onClick = { onTabChange(LibraryTab.Songs) },
+        )
+        Spacer(Modifier.width(2.dp))
+        CompactTab(
+            label = "Folders",
+            selected = tab == LibraryTab.Folders,
+            onClick = { onTabChange(LibraryTab.Folders) },
+        )
+        Spacer(Modifier.weight(1f))
+        if (showSort) {
+            SortMenu(current = sortBy, onChange = onSortChange)
+            Spacer(Modifier.width(4.dp))
+        }
+        IconButton(onClick = onOpenSearch) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        IconButton(onClick = onToggleViewMode) {
+            Icon(
+                imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
+                contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactFolderHeader(
+    folder: Folder,
+    onBack: () -> Unit,
+    viewMode: ViewMode,
+    onToggleViewMode: () -> Unit,
+    sortBy: SortBy,
+    onSortChange: (SortBy) -> Unit,
+    onOpenSearch: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        Text(
+            text = folder.name,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        SortMenu(current = sortBy, onChange = onSortChange)
+        IconButton(onClick = onOpenSearch) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        IconButton(onClick = onToggleViewMode) {
+            Icon(
+                imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
+                contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.titleMedium,
+        color = if (selected) NeonViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
 private fun AppHeader(songCount: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        Image(
+            painter = painterResource(id = R.drawable.ic_brand_logo),
+            contentDescription = null,
             modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(NeonViolet, NeonPink))),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Headphones,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.background,
-                modifier = Modifier.size(26.dp),
-            )
-        }
-        Spacer(Modifier.size(14.dp))
-        Column {
+                .size(32.dp)
+                .clip(RoundedCornerShape(10.dp)),
+        )
+        Spacer(Modifier.size(10.dp))
+        Text(
+            text = "Resonance",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(Modifier.weight(1f))
+        if (songCount > 0) {
             Text(
-                text = "Resonance",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = if (songCount > 0) "$songCount tracks in your library" else "Your library",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "$songCount tracks",
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -440,22 +590,26 @@ private fun SongContent(
             }
             item { Spacer(Modifier.height(120.dp)) }
         }
-        ViewMode.Grid -> LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(songs, key = { it.id }) { song ->
-                SongGridItem(
-                    song = song,
-                    isCurrent = song.id == currentSongId,
-                    isPlaying = isPlaying,
-                    onClick = { onSongClick(song) },
-                )
+        ViewMode.Grid -> BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val cells: GridCells = if (maxWidth >= 600.dp)
+                GridCells.Adaptive(160.dp) else GridCells.Fixed(3)
+            LazyVerticalGrid(
+                columns = cells,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(songs, key = { it.id }) { song ->
+                    SongGridItem(
+                        song = song,
+                        isCurrent = song.id == currentSongId,
+                        isPlaying = isPlaying,
+                        onClick = { onSongClick(song) },
+                    )
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(120.dp)) }
             }
-            item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(120.dp)) }
         }
     }
 }
@@ -484,17 +638,21 @@ private fun FolderContent(
             }
             item { Spacer(Modifier.height(120.dp)) }
         }
-        ViewMode.Grid -> LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(folders, key = { it.id }) { folder ->
-                FolderGridItem(folder = folder, onClick = { onFolderClick(folder) })
+        ViewMode.Grid -> BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val cells: GridCells = if (maxWidth >= 600.dp)
+                GridCells.Adaptive(160.dp) else GridCells.Fixed(3)
+            LazyVerticalGrid(
+                columns = cells,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(folders, key = { it.id }) { folder ->
+                    FolderGridItem(folder = folder, onClick = { onFolderClick(folder) })
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(120.dp)) }
             }
-            item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(120.dp)) }
         }
     }
 }

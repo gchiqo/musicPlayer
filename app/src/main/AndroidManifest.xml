@@ -33,6 +33,12 @@
             </intent-filter>
         </activity>
 
+        <provider
+            android:name=".image.ArtContentProvider"
+            android:authorities="com.chiko.musicplayer.art"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <service
             android:name=".player.MusicService"
             android:exported="true"

@@ -44,7 +44,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.chiko.musicplayer.audio.EqualizerManager
-import com.chiko.musicplayer.ui.theme.NeonPink
 import com.chiko.musicplayer.ui.theme.NeonViolet
 
 @Composable
@@ -64,7 +63,7 @@ fun EqualizerScreen(
     val bassStrength by EqualizerManager.bassStrength.collectAsState()
 
     val gradient = Brush.verticalGradient(
-        listOf(NeonViolet.copy(alpha = 0.35f), Color(0xFF120824), Color(0xFF0A0118))
+        listOf(NeonViolet.copy(alpha = 0.2f), Color.Black, Color.Black)
     )
 
     Box(
@@ -318,8 +317,8 @@ private fun BassBoostRow(
             valueRange = 0f..1000f,
             enabled = enabled,
             colors = SliderDefaults.colors(
-                thumbColor = NeonPink,
-                activeTrackColor = NeonPink,
+                thumbColor = Color.White,
+                activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.18f),
             ),
             modifier = Modifier.weight(1f),

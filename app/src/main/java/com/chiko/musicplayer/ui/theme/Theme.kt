@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -15,11 +16,11 @@ private val ResonanceColorScheme = darkColorScheme(
     onPrimary = Color.Black,
     primaryContainer = SurfaceCardElevated,
     onPrimaryContainer = SoftWhite,
-    secondary = NeonPink,
+    secondary = NeonViolet,
     onSecondary = Color.Black,
     tertiary = NeonCyan,
     onTertiary = Color.Black,
-    background = MidnightBlue,
+    background = Color.Black,
     onBackground = SoftWhite,
     surface = Charcoal,
     onSurface = SoftWhite,
@@ -28,9 +29,7 @@ private val ResonanceColorScheme = darkColorScheme(
     outline = MutedLavender,
 )
 
-val AppGradient = Brush.verticalGradient(
-    colors = listOf(MidnightBlue, DeepPurple, MidnightBlue),
-)
+val AppGradient: Brush = SolidColor(Color.Black)
 
 @Composable
 fun MusicPlayerTheme(

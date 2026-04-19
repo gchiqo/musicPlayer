@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.chiko.musicplayer.data.Song
-import com.chiko.musicplayer.ui.theme.NeonPink
 import com.chiko.musicplayer.ui.theme.NeonViolet
 import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
@@ -39,8 +38,7 @@ fun Artwork(
     val gradient = remember {
         Brush.linearGradient(
             colors = listOf(
-                NeonViolet.copy(alpha = 0.55f),
-                NeonPink.copy(alpha = 0.45f),
+                NeonViolet.copy(alpha = 0.4f),
                 SurfaceCardElevated,
             )
         )
