@@ -53,9 +53,10 @@ fun Artwork(
         contentAlignment = Alignment.Center,
     ) {
         if (song != null && !failed) {
+            val model: Any = if (song.isRemote) song.artworkUri.toString() else song
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(song)
+                    .data(model)
                     .memoryCacheKey("song-art:${song.id}")
                     .diskCacheKey("song-art:${song.id}")
                     .build(),

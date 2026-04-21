@@ -34,12 +34,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.widget.Toast
+import androidx.media3.common.util.UnstableApi
 import com.chiko.musicplayer.ui.MusicViewModel
 import com.chiko.musicplayer.ui.components.MiniPlayer
 import com.chiko.musicplayer.ui.screens.EqualizerScreen
 import com.chiko.musicplayer.ui.screens.HomeScreen
 import com.chiko.musicplayer.ui.screens.PermissionScreen
 import com.chiko.musicplayer.ui.screens.PlayerScreen
+import com.chiko.musicplayer.ui.screens.VideoPlayerScreen
 import com.chiko.musicplayer.ui.screens.VisualizerScreen
 import com.chiko.musicplayer.ui.theme.MusicPlayerTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -63,7 +66,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, UnstableApi::class)
 @Composable
 private fun App(scaffoldPadding: PaddingValues) {
     val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,9 +114,14 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     }
 
     val displayedSongs by viewModel.displayedSongs.collectAsState()
-    val allSongs by viewModel.songs.collectAsState()
     val folders by viewModel.folders.collectAsState()
     val selectedFolder by viewModel.selectedFolder.collectAsState()
+    val currentSong by viewModel.currentSong.collectAsState()
+    val youtubeQuery by viewModel.youtubeQuery.collectAsState()
+    val youtubeResults by viewModel.youtubeResults.collectAsState()
+    val youtubeSearching by viewModel.youtubeSearching.collectAsState()
+    val youtubeResolving by viewModel.youtubeResolving.collectAsState()
+    val youtubeError by viewModel.youtubeError.collectAsState()
     val tab by viewModel.tab.collectAsState()
     val sortBy by viewModel.sortBy.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
@@ -128,16 +136,26 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val showPlayer by viewModel.showPlayer.collectAsState()
     val showEqualizer by viewModel.showEqualizer.collectAsState()
     val showVisualizer by viewModel.showVisualizer.collectAsState()
+    val showVideoPlayer by viewModel.showVideoPlayer.collectAsState()
+    val currentIsVideo by viewModel.currentIsVideo.collectAsState()
+    val toast by viewModel.toast.collectAsState()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(toast) {
+        toast?.let {
+            Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeToast()
+        }
+    }
     val searchActive by viewModel.searchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val currentSong = allSongs.firstOrNull { it.id == currentId }
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
-    BackHandler(enabled = showVisualizer) { viewModel.closeVisualizer() }
-    BackHandler(enabled = !showVisualizer && showEqualizer) { viewModel.closeEqualizer() }
-    BackHandler(enabled = !showVisualizer && !showEqualizer && showPlayer) { viewModel.closePlayer() }
-    BackHandler(enabled = !showVisualizer && !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
-    BackHandler(enabled = !showVisualizer && !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
+    BackHandler(enabled = showVideoPlayer) { viewModel.closeVideoPlayer() }
+    BackHandler(enabled = !showVideoPlayer && showVisualizer) { viewModel.closeVisualizer() }
+    BackHandler(enabled = !showVideoPlayer && !showVisualizer && showEqualizer) { viewModel.closeEqualizer() }
+    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && showPlayer) { viewModel.closePlayer() }
+    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
+    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreen(
@@ -153,6 +171,11 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             searchActive = searchActive,
             searchQuery = searchQuery,
             contentPadding = scaffoldPadding,
+            youtubeQuery = youtubeQuery,
+            youtubeResults = youtubeResults,
+            youtubeSearching = youtubeSearching,
+            youtubeResolving = youtubeResolving,
+            youtubeError = youtubeError,
             onTabChange = { viewModel.setTab(it) },
             onSortChange = { viewModel.setSort(it) },
             onToggleViewMode = { viewModel.toggleViewMode() },
@@ -162,13 +185,21 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             onFolderClick = { viewModel.openFolder(it) },
             onFolderBack = { viewModel.closeFolder() },
             onSongClick = { viewModel.playSong(it) },
+            onYoutubeSearch = { viewModel.searchYoutube(it) },
+            onYoutubePlayAudio = { viewModel.playYoutubeAudio(it) },
+            onYoutubePlayVideo = { viewModel.playYoutubeVideo(it) },
+            onYoutubeDownloadAudio = { viewModel.downloadYoutubeAudio(it) },
+            onYoutubeDownloadVideo = { viewModel.downloadYoutubeVideo(it) },
         )
 
         MiniPlayer(
             song = if (!showPlayer) currentSong else null,
             isPlaying = isPlaying,
             progress = progress,
-            onClick = { viewModel.openPlayer() },
+            onClick = {
+                if (currentIsVideo) viewModel.reopenVideoPlayer()
+                else viewModel.openPlayer()
+            },
             onPlayPause = { viewModel.togglePlayPause() },
             onNext = { viewModel.next() },
             modifier = Modifier
@@ -231,6 +262,23 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                 contentPadding = scaffoldPadding,
                 onClose = { viewModel.closeVisualizer() },
             )
+        }
+
+        AnimatedVisibility(
+            visible = showVideoPlayer,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            val sharedPlayer = viewModel.getController()
+            if (sharedPlayer != null) {
+                VideoPlayerScreen(
+                    player = sharedPlayer,
+                    title = currentSong?.title.orEmpty(),
+                    subtitle = currentSong?.artist.orEmpty(),
+                    onClose = { viewModel.closeVideoPlayer() },
+                )
+            }
         }
     }
 }

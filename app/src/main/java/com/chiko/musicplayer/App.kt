@@ -7,8 +7,16 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.chiko.musicplayer.image.SongArtFetcher
 import com.chiko.musicplayer.image.SongKeyer
+import com.chiko.musicplayer.youtube.YoutubeDownloader
+import org.schabi.newpipe.extractor.NewPipe
 
 class App : Application(), ImageLoaderFactory {
+
+    override fun onCreate() {
+        super.onCreate()
+        NewPipe.init(YoutubeDownloader())
+    }
+
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
         .components {
             add(SongKeyer())

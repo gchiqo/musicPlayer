@@ -16,6 +16,7 @@ data class Song(
     val folderId: Long,
     val folderName: String,
     val dateAddedSec: Long,
+    val isRemote: Boolean = false,
 ) {
     fun toMediaItem(): MediaItem = MediaItem.Builder()
         .setMediaId(id.toString())

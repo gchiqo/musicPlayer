@@ -73,6 +73,7 @@ import com.chiko.musicplayer.ui.components.SongGridItem
 import com.chiko.musicplayer.ui.components.SongRow
 import com.chiko.musicplayer.ui.theme.AppGradient
 import com.chiko.musicplayer.ui.theme.NeonViolet
+import com.chiko.musicplayer.youtube.YoutubeVideo
 
 @Composable
 fun HomeScreen(
@@ -88,6 +89,11 @@ fun HomeScreen(
     searchActive: Boolean,
     searchQuery: String,
     contentPadding: PaddingValues,
+    youtubeQuery: String,
+    youtubeResults: List<YoutubeVideo>,
+    youtubeSearching: Boolean,
+    youtubeResolving: Boolean,
+    youtubeError: String?,
     onTabChange: (LibraryTab) -> Unit,
     onSortChange: (SortBy) -> Unit,
     onToggleViewMode: () -> Unit,
@@ -97,6 +103,11 @@ fun HomeScreen(
     onFolderClick: (Folder) -> Unit,
     onFolderBack: () -> Unit,
     onSongClick: (Song) -> Unit,
+    onYoutubeSearch: (String) -> Unit,
+    onYoutubePlayAudio: (YoutubeVideo) -> Unit,
+    onYoutubePlayVideo: (YoutubeVideo) -> Unit,
+    onYoutubeDownloadAudio: (YoutubeVideo) -> Unit,
+    onYoutubeDownloadVideo: (YoutubeVideo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isCompactHeight = LocalConfiguration.current.screenHeightDp < 500
@@ -152,25 +163,40 @@ fun HomeScreen(
                 else -> {
                     AppHeader(songCount = songs.size)
                     LibraryTabs(tab = tab, onTabChange = onTabChange)
-                    ToolbarRow(
-                        viewMode = viewMode,
-                        onToggleViewMode = onToggleViewMode,
-                        sortBy = sortBy,
-                        onSortChange = onSortChange,
-                        showSort = showSort,
-                        showSearch = true,
-                        onOpenSearch = onOpenSearch,
-                    )
+                    if (tab != LibraryTab.YouTube) {
+                        ToolbarRow(
+                            viewMode = viewMode,
+                            onToggleViewMode = onToggleViewMode,
+                            sortBy = sortBy,
+                            onSortChange = onSortChange,
+                            showSort = showSort,
+                            showSearch = true,
+                            onOpenSearch = onOpenSearch,
+                        )
+                    }
                 }
             }
 
             when {
-                isLoading -> LoadingState()
+                isLoading && tab != LibraryTab.YouTube -> LoadingState()
                 selectedFolder == null && tab == LibraryTab.Folders -> FolderContent(
                     folders = folders,
                     viewMode = viewMode,
                     searchQuery = if (searchActive) searchQuery else "",
                     onFolderClick = onFolderClick,
+                )
+                selectedFolder == null && tab == LibraryTab.YouTube -> YoutubeTabContent(
+                    initialQuery = youtubeQuery,
+                    results = youtubeResults,
+                    isSearching = youtubeSearching,
+                    isResolving = youtubeResolving,
+                    error = youtubeError,
+                    onSubmit = onYoutubeSearch,
+                    onPlayAudio = onYoutubePlayAudio,
+                    onPlayVideo = onYoutubePlayVideo,
+                    onDownloadAudio = onYoutubeDownloadAudio,
+                    onDownloadVideo = onYoutubeDownloadVideo,
+                    contentPadding = contentPadding,
                 )
                 else -> SongContent(
                     songs = songs,
@@ -281,24 +307,32 @@ private fun CompactBrowseHeader(
             selected = tab == LibraryTab.Folders,
             onClick = { onTabChange(LibraryTab.Folders) },
         )
+        Spacer(Modifier.width(2.dp))
+        CompactTab(
+            label = "YouTube",
+            selected = tab == LibraryTab.YouTube,
+            onClick = { onTabChange(LibraryTab.YouTube) },
+        )
         Spacer(Modifier.weight(1f))
-        if (showSort) {
-            SortMenu(current = sortBy, onChange = onSortChange)
-            Spacer(Modifier.width(4.dp))
-        }
-        IconButton(onClick = onOpenSearch) {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = "Search",
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-        IconButton(onClick = onToggleViewMode) {
-            Icon(
-                imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
-                contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
+        if (tab != LibraryTab.YouTube) {
+            if (showSort) {
+                SortMenu(current = sortBy, onChange = onSortChange)
+                Spacer(Modifier.width(4.dp))
+            }
+            IconButton(onClick = onOpenSearch) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            IconButton(onClick = onToggleViewMode) {
+                Icon(
+                    imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
+                    contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
     }
 }
@@ -436,8 +470,8 @@ private fun FolderHeader(folder: Folder, onBack: () -> Unit) {
 
 @Composable
 private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
-    val tabs = remember { listOf(LibraryTab.Songs, LibraryTab.Folders) }
-    val selectedIndex = tabs.indexOf(tab)
+    val tabs = remember { listOf(LibraryTab.Songs, LibraryTab.Folders, LibraryTab.YouTube) }
+    val selectedIndex = tabs.indexOf(tab).coerceAtLeast(0)
     PrimaryTabRow(
         selectedTabIndex = selectedIndex,
         containerColor = Color.Transparent,
@@ -452,7 +486,11 @@ private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
                 unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 text = {
                     Text(
-                        text = if (t == LibraryTab.Songs) "Songs" else "Folders",
+                        text = when (t) {
+                            LibraryTab.Songs -> "Songs"
+                            LibraryTab.Folders -> "Folders"
+                            LibraryTab.YouTube -> "YouTube"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                     )
                 },
