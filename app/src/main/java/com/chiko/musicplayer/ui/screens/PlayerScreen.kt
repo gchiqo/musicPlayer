@@ -58,7 +58,6 @@ import androidx.media3.common.Player
 import com.chiko.musicplayer.data.Song
 import com.chiko.musicplayer.ui.components.Artwork
 import com.chiko.musicplayer.ui.components.formatDuration
-import com.chiko.musicplayer.ui.theme.NeonViolet
 
 private val ArtworkCorner = 32.dp
 
@@ -84,9 +83,15 @@ fun PlayerScreen(
     onSpeedChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val gradient = remember(song.id) {
+    val accent = MaterialTheme.colorScheme.primary
+    val bg = MaterialTheme.colorScheme.background
+    val gradient = remember(song.id, accent, bg) {
         Brush.verticalGradient(
-            listOf(NeonViolet.copy(alpha = 0.35f), Color.Black, Color.Black)
+            listOf(
+                accent.copy(alpha = 0.18f),
+                bg.copy(alpha = 0.85f),
+                bg,
+            )
         )
     }
     var sliderInteracting by remember { mutableStateOf(false) }
@@ -301,17 +306,6 @@ private fun HeroArtwork(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
-                .clip(RoundedCornerShape(ArtworkCorner + 8.dp))
-                .background(
-                    Brush.radialGradient(
-                        listOf(NeonViolet.copy(alpha = 0.55f), Color.Transparent)
-                    )
-                ),
-        )
         Artwork(
             song = song,
             modifier = Modifier
@@ -325,6 +319,7 @@ private fun HeroArtwork(
                 .clip(RoundedCornerShape(ArtworkCorner)),
             cornerRadius = ArtworkCorner,
             iconSize = 96.dp,
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
         )
     }
 }
@@ -349,9 +344,9 @@ private fun ProgressSection(
         onValueChangeFinished = onSeekEnd,
         valueRange = 0f..maxValue,
         colors = SliderDefaults.colors(
-            thumbColor = NeonViolet,
-            activeTrackColor = NeonViolet,
-            inactiveTrackColor = Color.White.copy(alpha = 0.18f),
+            thumbColor = MaterialTheme.colorScheme.primary,
+            activeTrackColor = MaterialTheme.colorScheme.primary,
+            inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
         ),
     )
     Row(
@@ -392,7 +387,7 @@ private fun SpeedChip(
             Text(
                 text = speed.formatSpeed(),
                 style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
-                color = if (speed == 1.0f) MaterialTheme.colorScheme.onSurface else NeonViolet,
+                color = if (speed == 1.0f) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
             )
         }
         DropdownMenu(
@@ -405,7 +400,7 @@ private fun SpeedChip(
                     text = {
                         Text(
                             text = s.formatSpeed(),
-                            color = if (s == speed) NeonViolet else MaterialTheme.colorScheme.onSurface,
+                            color = if (s == speed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
                     },
                     onClick = {
@@ -443,7 +438,7 @@ private fun Controls(
             Icon(
                 imageVector = Icons.Rounded.Shuffle,
                 contentDescription = "Shuffle",
-                tint = if (shuffle) NeonViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp),
             )
         }
@@ -459,7 +454,7 @@ private fun Controls(
             modifier = Modifier
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(NeonViolet),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(onClick = onPlayPause, modifier = Modifier.fillMaxSize()) {
@@ -484,7 +479,7 @@ private fun Controls(
                 imageVector = if (repeatMode == Player.REPEAT_MODE_ONE)
                     Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                 contentDescription = "Repeat",
-                tint = if (repeatMode != Player.REPEAT_MODE_OFF) NeonViolet
+                tint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp),
             )

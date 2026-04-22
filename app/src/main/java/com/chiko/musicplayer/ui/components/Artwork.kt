@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,8 +26,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.chiko.musicplayer.data.Song
-import com.chiko.musicplayer.ui.theme.NeonViolet
-import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
 @Composable
 fun Artwork(
@@ -34,12 +33,15 @@ fun Artwork(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 16.dp,
     iconSize: Dp = 32.dp,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
-    val gradient = remember {
+    val accent = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surfaceVariant
+    val gradient = remember(accent, surface) {
         Brush.linearGradient(
             colors = listOf(
-                NeonViolet.copy(alpha = 0.4f),
-                SurfaceCardElevated,
+                accent.copy(alpha = 0.4f),
+                surface,
             )
         )
     }
@@ -49,7 +51,10 @@ fun Artwork(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(cornerRadius))
-            .background(gradient),
+            .then(
+                if (contentScale == ContentScale.Crop) Modifier.background(gradient)
+                else Modifier
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (song != null && !failed) {
@@ -61,7 +66,7 @@ fun Artwork(
                     .diskCacheKey("song-art:${song.id}")
                     .build(),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 onError = { failed = true },
                 modifier = Modifier.fillMaxSize(),
             )

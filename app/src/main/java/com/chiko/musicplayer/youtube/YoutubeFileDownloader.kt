@@ -20,14 +20,18 @@ import java.net.URL
 
 class YoutubeFileDownloader(private val context: Context) {
 
-    suspend fun downloadAudio(video: YoutubeVideo, streamUrl: String): Boolean =
+    suspend fun downloadAudio(
+        video: YoutubeVideo,
+        streamUrl: String,
+        onProgress: ((written: Long, total: Long) -> Unit)? = null,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             var temp: File? = null
             try {
                 val tmp = File(context.cacheDir, "yt-${System.currentTimeMillis()}.m4a")
                 temp = tmp
                 Log.d(TAG, "downloadAudio: streaming to ${tmp.name}")
-                downloadToFile(streamUrl, tmp)
+                downloadToFile(streamUrl, tmp, onProgress)
 
                 val thumbBytes = video.thumbnailUrl?.let { downloadBytes(it) }
                 if (thumbBytes != null) {
@@ -62,7 +66,11 @@ class YoutubeFileDownloader(private val context: Context) {
         return manager.enqueue(request)
     }
 
-    private fun downloadToFile(url: String, dest: File) {
+    private fun downloadToFile(
+        url: String,
+        dest: File,
+        onProgress: ((written: Long, total: Long) -> Unit)? = null,
+    ) {
         dest.outputStream().use { out ->
             var from = 0L
             var total = -1L
@@ -72,10 +80,13 @@ class YoutubeFileDownloader(private val context: Context) {
                 val wrote = fetchRange(url, from, to, out)
                 if (wrote == FETCH_WHOLE_FILE) {
                     Log.d(TAG, "downloadToFile: server sent whole file in one response")
+                    val size = dest.length()
+                    onProgress?.invoke(size, size)
                     return
                 }
                 if (total == -1L) total = wrote.second
                 from += wrote.first
+                if (total > 0) onProgress?.invoke(from, total)
                 if (wrote.first == 0L) break
                 if (total > 0 && from >= total) break
             }

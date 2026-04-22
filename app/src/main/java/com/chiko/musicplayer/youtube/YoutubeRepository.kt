@@ -3,7 +3,11 @@ package com.chiko.musicplayer.youtube
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.channel.ChannelInfoItem
+import org.schabi.newpipe.extractor.channel.tabs.ChannelTabs
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -11,11 +15,19 @@ private const val TAG = "Resonance"
 
 class YoutubeRepository {
 
-    suspend fun search(query: String): List<YoutubeVideo> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-        Log.d(TAG, "yt search start: $query")
+    suspend fun search(
+        query: String,
+        filter: YoutubeFilter = YoutubeFilter.Videos,
+    ): YoutubeSearchPage = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext YoutubeSearchPage(emptyList(), null)
+        Log.d(TAG, "yt search start: $query (${filter.name})")
         val service = ServiceList.YouTube
-        val qh = service.searchQHFactory.fromQuery(query)
+        val contentFilters = when (filter) {
+            YoutubeFilter.Videos -> listOf("videos")
+            YoutubeFilter.Channels -> listOf("channels")
+            YoutubeFilter.Playlists -> listOf("playlists")
+        }
+        val qh = service.searchQHFactory.fromQuery(query, contentFilters, "")
         val extractor = service.getSearchExtractor(qh)
         try {
             extractor.fetchPage()
@@ -23,11 +35,60 @@ class YoutubeRepository {
             Log.e(TAG, "yt search fetchPage failed", t)
             throw t
         }
-        val results = extractor.initialPage.items
-            .filterIsInstance<StreamInfoItem>()
-            .map { it.toYoutubeVideo() }
-        Log.d(TAG, "yt search done: ${results.size} results")
-        results
+        val page = extractor.initialPage
+        val results = mapSearchItems(page.items)
+        Log.d(TAG, "yt search done: ${results.size} results (hasNext=${page.nextPage != null})")
+        YoutubeSearchPage(results, page.nextPage)
+    }
+
+    suspend fun searchNext(
+        query: String,
+        filter: YoutubeFilter,
+        pageToken: Page,
+    ): YoutubeSearchPage = withContext(Dispatchers.IO) {
+        Log.d(TAG, "yt searchNext: $query")
+        val service = ServiceList.YouTube
+        val contentFilters = when (filter) {
+            YoutubeFilter.Videos -> listOf("videos")
+            YoutubeFilter.Channels -> listOf("channels")
+            YoutubeFilter.Playlists -> listOf("playlists")
+        }
+        val qh = service.searchQHFactory.fromQuery(query, contentFilters, "")
+        val extractor = service.getSearchExtractor(qh)
+        val page = extractor.getPage(pageToken)
+        YoutubeSearchPage(mapSearchItems(page.items), page.nextPage)
+    }
+
+    suspend fun playlistNext(
+        playlistUrl: String,
+        pageToken: Page,
+    ): Pair<List<YoutubeVideo>, Page?> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "yt playlistNext: $playlistUrl")
+        val service = ServiceList.YouTube
+        val extractor = service.getPlaylistExtractor(playlistUrl)
+        val page = extractor.getPage(pageToken)
+        val videos = page.items.filterIsInstance<StreamInfoItem>().map { it.toYoutubeVideo() }
+        Pair(videos, page.nextPage)
+    }
+
+    private fun mapSearchItems(items: List<*>): List<YoutubeResult> = items.mapNotNull { item ->
+        when (item) {
+            is StreamInfoItem -> YoutubeResult.Video(item.toYoutubeVideo())
+            is ChannelInfoItem -> YoutubeResult.Channel(
+                url = item.url,
+                name = item.name.orEmpty(),
+                avatarUrl = item.thumbnails?.maxByOrNull { it.width }?.url,
+                subscribers = item.subscriberCount.coerceAtLeast(-1L),
+            )
+            is PlaylistInfoItem -> YoutubeResult.Playlist(
+                url = item.url,
+                title = item.name.orEmpty(),
+                uploader = item.uploaderName.orEmpty(),
+                thumbnailUrl = item.thumbnails?.maxByOrNull { it.width }?.url,
+                videoCount = item.streamCount.coerceAtLeast(0L),
+            )
+            else -> null
+        }
     }
 
     suspend fun resolveAudioStream(url: String): ResolvedStream? = withContext(Dispatchers.IO) {
@@ -73,6 +134,68 @@ class YoutubeRepository {
         }
         Log.d(TAG, "yt resolveVideo ok: ${picked.resolution} ${picked.format?.mimeType}")
         ResolvedStream(url = picked.content, mimeType = picked.format?.mimeType)
+    }
+
+    suspend fun loadPlaylist(url: String): YoutubeFeed = withContext(Dispatchers.IO) {
+        Log.d(TAG, "yt loadPlaylist: $url")
+        val service = ServiceList.YouTube
+        val extractor = service.getPlaylistExtractor(url)
+        extractor.fetchPage()
+        val page = extractor.initialPage
+        val videos = page.items
+            .filterIsInstance<StreamInfoItem>()
+            .map { it.toYoutubeVideo() }
+        YoutubeFeed(
+            url = url,
+            title = extractor.name.orEmpty(),
+            subtitle = extractor.uploaderName.orEmpty(),
+            thumbnailUrl = extractor.thumbnails?.maxByOrNull { it.width }?.url,
+            videos = videos,
+            kind = YoutubeFeed.Kind.Playlist,
+            nextPage = page.nextPage,
+        )
+    }
+
+    suspend fun loadChannel(url: String): YoutubeFeed = withContext(Dispatchers.IO) {
+        Log.d(TAG, "yt loadChannel: $url")
+        val service = ServiceList.YouTube
+        val extractor = service.getChannelExtractor(url)
+        extractor.fetchPage()
+        val name = extractor.name.orEmpty()
+        val avatarUrl = extractor.avatars?.maxByOrNull { it.width }?.url
+        val subscribers = runCatching { extractor.subscriberCount }.getOrDefault(-1L)
+
+        val videosTab = extractor.tabs.firstOrNull { tab ->
+            tab.contentFilters.any { f -> f.equals(ChannelTabs.VIDEOS, ignoreCase = true) }
+        } ?: extractor.tabs.firstOrNull()
+
+        val videos = if (videosTab != null) {
+            runCatching {
+                val tabExtractor = service.getChannelTabExtractor(videosTab)
+                tabExtractor.fetchPage()
+                tabExtractor.initialPage.items
+                    .filterIsInstance<StreamInfoItem>()
+                    .map { it.toYoutubeVideo() }
+            }.getOrElse { t ->
+                Log.w(TAG, "channel tab fetch failed", t)
+                emptyList()
+            }
+        } else emptyList()
+
+        YoutubeFeed(
+            url = url,
+            title = name,
+            subtitle = if (subscribers > 0) formatSubs(subscribers) else "",
+            thumbnailUrl = avatarUrl,
+            videos = videos,
+            kind = YoutubeFeed.Kind.Channel,
+        )
+    }
+
+    private fun formatSubs(n: Long): String = when {
+        n >= 1_000_000 -> "%.1fM subscribers".format(n / 1_000_000.0)
+        n >= 1_000 -> "%.1fK subscribers".format(n / 1_000.0)
+        else -> "$n subscribers"
     }
 
     private fun parseResolution(resolution: String?): Int {

@@ -26,9 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.chiko.musicplayer.ui.theme.AppGradient
-import com.chiko.musicplayer.ui.theme.NeonViolet
-import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
 @Composable
 fun PermissionScreen(
@@ -40,7 +37,7 @@ fun PermissionScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradient),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -54,7 +51,7 @@ fun PermissionScreen(
                 modifier = Modifier
                     .size(96.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(NeonViolet, SurfaceCardElevated))),
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surfaceVariant))),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -82,8 +79,8 @@ fun PermissionScreen(
             Button(
                 onClick = if (permanentlyDenied) onOpenSettings else onRequest,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonViolet,
-                    contentColor = MaterialTheme.colorScheme.background,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier

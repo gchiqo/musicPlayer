@@ -43,8 +43,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlin.random.Random
 import com.chiko.musicplayer.audio.VisualizerManager
-import com.chiko.musicplayer.ui.theme.NeonCyan
-import com.chiko.musicplayer.ui.theme.NeonViolet
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -110,22 +108,26 @@ fun VisualizerScreen(
         }
     }
 
+    val accent = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.tertiary
+    val background = MaterialTheme.colorScheme.background
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(background)
             .clickable { modeIndex = (modeIndex + 1) % MODES.size },
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             when (modeIndex) {
-                0 -> drawPulse(level, time)
-                1 -> drawWave(level, time)
-                2 -> drawOrbit(level, time)
-                3 -> drawBars(bands)
-                4 -> drawRays(bands, time)
-                5 -> drawTunnel(level, time)
-                6 -> drawParticles(particles, level, time)
-                else -> drawDancer(level, bands, time)
+                0 -> drawPulse(level, time, accent, secondary)
+                1 -> drawWave(level, time, accent, secondary)
+                2 -> drawOrbit(level, time, accent, secondary)
+                3 -> drawBars(bands, accent, secondary)
+                4 -> drawRays(bands, time, accent, secondary)
+                5 -> drawTunnel(level, time, accent, secondary)
+                6 -> drawParticles(particles, level, time, accent, secondary)
+                else -> drawDancer(level, bands, time, accent, secondary)
             }
         }
 
@@ -152,15 +154,20 @@ fun VisualizerScreen(
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPulse(level: Float, time: Float) {
+private fun DrawScope.drawPulse(
+    level: Float,
+    time: Float,
+    accent: Color,
+    secondary: Color,
+) {
     val center = Offset(size.width / 2f, size.height / 2f)
     val maxR = size.minDimension / 2f * 0.95f
 
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                NeonViolet.copy(alpha = 0.45f + level * 0.45f),
-                NeonViolet.copy(alpha = 0.15f),
+                accent.copy(alpha = 0.45f + level * 0.45f),
+                accent.copy(alpha = 0.15f),
                 Color.Transparent,
             ),
             center = center,
@@ -171,7 +178,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPulse(level: Fl
     )
 
     val coreR = 50f + level * (maxR * 0.55f)
-    drawCircle(color = NeonViolet.copy(alpha = 0.85f), center = center, radius = coreR)
+    drawCircle(color = accent.copy(alpha = 0.85f), center = center, radius = coreR)
     drawCircle(color = Color.White.copy(alpha = 0.95f), center = center, radius = 18f + level * 28f)
 
     for (i in 0 until 3) {
@@ -179,7 +186,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPulse(level: Fl
         val r = phase * maxR
         val alpha = (1f - phase) * (0.25f + level * 0.6f)
         drawCircle(
-            color = NeonCyan.copy(alpha = alpha),
+            color = secondary.copy(alpha = alpha),
             center = center,
             radius = r,
             style = Stroke(width = 3f),
@@ -187,7 +194,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPulse(level: Fl
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(level: Float, time: Float) {
+private fun DrawScope.drawWave(
+    level: Float,
+    time: Float,
+    accent: Color,
+    secondary: Color,
+) {
     val centerY = size.height / 2f
     val amplitude = (20f + level * size.height / 4f).coerceAtMost(size.height / 2f - 20f)
     val path = Path().apply {
@@ -196,15 +208,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(level: Flo
         val step = 4f
         while (x <= size.width) {
             val phase = (x / size.width.toFloat() * 6f + time * 2.5f).toDouble()
-            val secondary = sin(phase * 2.0 + time.toDouble()) * 0.35
-            val y = centerY + ((sin(phase) + secondary) * amplitude).toFloat()
+            val secondaryWave = sin(phase * 2.0 + time.toDouble()) * 0.35
+            val y = centerY + ((sin(phase) + secondaryWave) * amplitude).toFloat()
             lineTo(x, y)
             x += step
         }
     }
     drawPath(
         path = path,
-        brush = Brush.horizontalGradient(listOf(NeonCyan, NeonViolet, NeonCyan)),
+        brush = Brush.horizontalGradient(listOf(secondary, accent, secondary)),
         style = Stroke(width = 5f, cap = StrokeCap.Round),
     )
 
@@ -221,12 +233,17 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(level: Flo
     }
     drawPath(
         path = mirror,
-        color = NeonViolet.copy(alpha = 0.5f),
+        color = accent.copy(alpha = 0.5f),
         style = Stroke(width = 3f, cap = StrokeCap.Round),
     )
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrbit(level: Float, time: Float) {
+private fun DrawScope.drawOrbit(
+    level: Float,
+    time: Float,
+    accent: Color,
+    secondary: Color,
+) {
     val center = Offset(size.width / 2f, size.height / 2f)
     val maxR = size.minDimension / 2f * 0.85f
     val rings = 5
@@ -236,7 +253,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrbit(level: Fl
         val rotation = time * (0.4f + i * 0.15f) * if (i % 2 == 0) 1f else -1f
         val baseAngle = rotation * 2 * PI
         val dotR = (3f + level * 12f) * (1f - i.toFloat() / rings * 0.5f)
-        val color = lerpColor(NeonViolet, NeonCyan, i.toFloat() / (rings - 1))
+        val color = lerpColor(accent, secondary, i.toFloat() / (rings - 1))
         for (d in 0 until dotCount) {
             val angle = baseAngle + d * 2 * PI / dotCount
             val pulse = 1f + level * 0.4f * sin((time * 4 + d).toDouble()).toFloat()
@@ -251,7 +268,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrbit(level: Fl
     }
 }
 
-private fun DrawScope.drawBars(bands: FloatArray) {
+private fun DrawScope.drawBars(bands: FloatArray, accent: Color, secondary: Color) {
     if (bands.isEmpty()) return
     val n = bands.size
     val gap = 8f
@@ -270,7 +287,7 @@ private fun DrawScope.drawBars(bands: FloatArray) {
         val v = bands[i].coerceIn(0f, 1f)
         val h = (v * maxHalf * 2f).coerceAtLeast(minVisible)
         val x = startX + i * (barWidth + gap)
-        val color = lerpColor(NeonViolet, NeonCyan, v)
+        val color = lerpColor(accent, secondary, v)
         drawRoundRect(
             color = color,
             topLeft = Offset(x, centerY - h / 2f),
@@ -280,7 +297,7 @@ private fun DrawScope.drawBars(bands: FloatArray) {
     }
 }
 
-private fun DrawScope.drawRays(bands: FloatArray, time: Float) {
+private fun DrawScope.drawRays(bands: FloatArray, time: Float, accent: Color, secondary: Color) {
     if (bands.isEmpty()) return
     val n = bands.size
     val center = Offset(size.width / 2f, size.height / 2f)
@@ -296,7 +313,7 @@ private fun DrawScope.drawRays(bands: FloatArray, time: Float) {
         val length = baseR + v * (maxR - baseR)
         val ca = cos(angle).toFloat()
         val sa = sin(angle).toFloat()
-        val color = lerpColor(NeonViolet, NeonCyan, v)
+        val color = lerpColor(accent, secondary, v)
         drawLine(
             color = color,
             start = Offset(center.x + ca * baseR, center.y + sa * baseR),
@@ -307,7 +324,7 @@ private fun DrawScope.drawRays(bands: FloatArray, time: Float) {
     }
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(NeonViolet.copy(alpha = 0.9f), Color.Transparent),
+            colors = listOf(accent.copy(alpha = 0.9f), Color.Transparent),
             center = center,
             radius = baseR * 1.2f,
         ),
@@ -317,7 +334,12 @@ private fun DrawScope.drawRays(bands: FloatArray, time: Float) {
     drawCircle(color = Color.White.copy(alpha = 0.9f), center = center, radius = baseR * 0.35f)
 }
 
-private fun DrawScope.drawTunnel(level: Float, time: Float) {
+private fun DrawScope.drawTunnel(
+    level: Float,
+    time: Float,
+    accent: Color,
+    secondary: Color,
+) {
     val center = Offset(size.width / 2f, size.height / 2f)
     val maxR = size.minDimension * 0.55f
     val rings = 14
@@ -326,7 +348,7 @@ private fun DrawScope.drawTunnel(level: Float, time: Float) {
             val phase = ((time * 0.45f + i.toFloat() / rings) % 1f)
             val r = maxR * phase
             val alpha = (1f - phase) * (0.25f + level * 0.7f)
-            val color = lerpColor(NeonViolet, NeonCyan, phase)
+            val color = lerpColor(accent, secondary, phase)
             drawRect(
                 color = color.copy(alpha = alpha),
                 topLeft = Offset(center.x - r, center.y - r),
@@ -341,6 +363,8 @@ private fun DrawScope.drawParticles(
     particles: List<ParticleSeed>,
     level: Float,
     time: Float,
+    accent: Color,
+    secondary: Color,
 ) {
     val w = size.width
     val h = size.height
@@ -354,7 +378,7 @@ private fun DrawScope.drawParticles(
         val x = nx * w
         val y = ny * h
         val r = p.baseRadius * growth
-        val color = lerpColor(NeonViolet, NeonCyan, p.tint)
+        val color = lerpColor(accent, secondary, p.tint)
         drawCircle(
             color = color.copy(alpha = (alphaBase * 0.35f).coerceIn(0f, 1f)),
             center = Offset(x, y),
@@ -368,7 +392,13 @@ private fun DrawScope.drawParticles(
     }
 }
 
-private fun DrawScope.drawDancer(level: Float, bands: FloatArray, time: Float) {
+private fun DrawScope.drawDancer(
+    level: Float,
+    bands: FloatArray,
+    time: Float,
+    accent: Color,
+    secondary: Color,
+) {
     val bass = bandAverage(bands, 0, 4)
     val mid = bandAverage(bands, 8, 14)
     val high = bandAverage(bands, 18, bands.size)
@@ -397,13 +427,13 @@ private fun DrawScope.drawDancer(level: Float, bands: FloatArray, time: Float) {
     val leftKneeBend = (bass * 0.6f) + (((sin(phase + PI) + 1.0) * 0.5).toFloat()) * 0.25f
     val rightKneeBend = (bass * 0.6f) + (((sin(phase) + 1.0) * 0.5).toFloat()) * 0.25f
 
-    val color = lerpColor(NeonViolet, NeonCyan, level)
+    val color = lerpColor(accent, secondary, level)
 
     // Aura
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                NeonViolet.copy(alpha = (0.15f + bass * 0.55f).coerceIn(0f, 0.7f)),
+                accent.copy(alpha = (0.15f + bass * 0.55f).coerceIn(0f, 0.7f)),
                 Color.Transparent,
             ),
             center = Offset(cx, headCenterY + torso * 0.3f),

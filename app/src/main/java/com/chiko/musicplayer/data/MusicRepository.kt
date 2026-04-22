@@ -1,14 +1,72 @@
 package com.chiko.musicplayer.data
 
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
+import android.content.IntentSender
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import com.chiko.musicplayer.image.songArtUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MusicRepository(private val context: Context) {
+
+    /** Result of attempting to update audio file metadata. */
+    sealed class WriteResult {
+        object Success : WriteResult()
+        /** R+ requires explicit user consent before writing. Caller must launch [intentSender]. */
+        data class NeedsConsent(val intentSender: IntentSender) : WriteResult()
+        data class Failure(val error: Throwable) : WriteResult()
+    }
+
+    /**
+     * Returns an IntentSender the user must approve to allow writes on R+, or null if
+     * pre-R (no consent dialog needed; we just attempt the write directly).
+     */
+    fun buildWriteConsent(uris: List<Uri>): IntentSender? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        if (uris.isEmpty()) return null
+        return MediaStore.createWriteRequest(context.contentResolver, uris).intentSender
+    }
+
+    /** Updates RELATIVE_PATH on each URI to "Music/<folderName>/". */
+    suspend fun moveToFolder(uris: List<Uri>, folderName: String): Int = withContext(Dispatchers.IO) {
+        val safe = sanitizeFolderName(folderName)
+        if (safe.isBlank()) return@withContext 0
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            // Pre-Q has no RELATIVE_PATH; would require File operations. Skip for now.
+            Log.w("Resonance", "moveToFolder unsupported on API < 29")
+            return@withContext 0
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Audio.Media.RELATIVE_PATH, "Music/$safe/")
+            put(MediaStore.Audio.Media.IS_PENDING, 1)
+        }
+        val finalize = ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }
+        var updated = 0
+        for (uri in uris) {
+            try {
+                val n = context.contentResolver.update(uri, values, null, null)
+                if (n > 0) {
+                    context.contentResolver.update(uri, finalize, null, null)
+                    updated++
+                }
+            } catch (t: Throwable) {
+                Log.w("Resonance", "moveToFolder failed for $uri", t)
+            }
+        }
+        updated
+    }
+
+    private fun sanitizeFolderName(name: String): String {
+        val trimmed = name.trim().trimStart('/').trimEnd('/')
+        // Strip characters not safe for paths.
+        return trimmed.replace(Regex("[\\\\:*?\"<>|]"), "")
+    }
+
 
     suspend fun loadSongs(): List<Song> = withContext(Dispatchers.IO) {
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI

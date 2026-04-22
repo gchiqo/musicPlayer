@@ -44,7 +44,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.chiko.musicplayer.audio.EqualizerManager
-import com.chiko.musicplayer.ui.theme.NeonViolet
 
 @Composable
 fun EqualizerScreen(
@@ -62,8 +61,10 @@ fun EqualizerScreen(
     val currentPreset by EqualizerManager.currentPreset.collectAsState()
     val bassStrength by EqualizerManager.bassStrength.collectAsState()
 
+    val accent = MaterialTheme.colorScheme.primary
+    val bg = MaterialTheme.colorScheme.background
     val gradient = Brush.verticalGradient(
-        listOf(NeonViolet.copy(alpha = 0.2f), Color.Black, Color.Black)
+        listOf(accent.copy(alpha = 0.2f), bg, bg)
     )
 
     Box(
@@ -185,7 +186,7 @@ private fun TopBar(
                 onCheckedChange = { EqualizerManager.setEnabled(it) },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = NeonViolet,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
                     uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
@@ -224,9 +225,9 @@ private fun PresetRow(
             enabled = false,
             label = { Text("Custom") },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = NeonViolet.copy(alpha = 0.25f),
-                selectedLabelColor = NeonViolet,
-                disabledSelectedContainerColor = NeonViolet.copy(alpha = 0.25f),
+                selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                selectedLabelColor = MaterialTheme.colorScheme.primary,
+                disabledSelectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         )
@@ -238,8 +239,8 @@ private fun PresetRow(
                 enabled = enabled,
                 label = { Text(name) },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = NeonViolet.copy(alpha = 0.25f),
-                    selectedLabelColor = NeonViolet,
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                     labelColor = MaterialTheme.colorScheme.onSurface,
                 ),
@@ -276,9 +277,9 @@ private fun BandRow(
             valueRange = minLevel.toFloat()..maxLevel.toFloat(),
             enabled = enabled,
             colors = SliderDefaults.colors(
-                thumbColor = NeonViolet,
-                activeTrackColor = NeonViolet,
-                inactiveTrackColor = Color.White.copy(alpha = 0.18f),
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
             ),
             modifier = Modifier.weight(1f),
         )
@@ -317,9 +318,9 @@ private fun BassBoostRow(
             valueRange = 0f..1000f,
             enabled = enabled,
             colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.White.copy(alpha = 0.18f),
+                thumbColor = MaterialTheme.colorScheme.onSurface,
+                activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
             ),
             modifier = Modifier.weight(1f),
         )

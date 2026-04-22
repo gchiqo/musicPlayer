@@ -6,12 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
@@ -41,32 +40,26 @@ import coil.compose.AsyncImage
 import com.chiko.musicplayer.youtube.YoutubeVideo
 
 @Composable
-fun YoutubeVideoRow(
+fun YoutubeGridItem(
     video: YoutubeVideo,
     onPlayAudio: () -> Unit,
     onPlayVideo: () -> Unit,
     onDownloadAudio: () -> Unit,
     onDownloadVideo: () -> Unit,
-    expanded: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
-            .clickable(onClick = onPlayAudio)
-            .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
     ) {
         Box(
             modifier = Modifier
-                .width(120.dp)
+                .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clickable(onClick = onPlayAudio),
         ) {
             if (!video.thumbnailUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -76,12 +69,12 @@ fun YoutubeVideoRow(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            val duration = video.durationSec.formatSeconds()
+            val duration = video.durationSec.formatGrid()
             if (duration.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(4.dp)
+                        .padding(6.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color.Black.copy(alpha = 0.65f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -94,46 +87,36 @@ fun YoutubeVideoRow(
                 }
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, top = 6.dp, end = 2.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = video.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = video.uploader,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (expanded) {
-            IconButton(onClick = onPlayAudio) {
-                Icon(Icons.Rounded.Headphones, contentDescription = "Play audio",
-                    tint = MaterialTheme.colorScheme.onSurface)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = video.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (video.uploader.isNotBlank()) {
+                    Text(
+                        text = video.uploader,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            IconButton(onClick = onPlayVideo) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play video",
-                    tint = MaterialTheme.colorScheme.onSurface)
-            }
-            IconButton(onClick = onDownloadAudio) {
-                Icon(Icons.Rounded.Download, contentDescription = "Download audio",
-                    tint = MaterialTheme.colorScheme.onSurface)
-            }
-            IconButton(onClick = onDownloadVideo) {
-                Icon(Icons.Rounded.Movie, contentDescription = "Download video",
-                    tint = MaterialTheme.colorScheme.onSurface)
-            }
-        } else {
             Box {
-                IconButton(onClick = { menuOpen = true }) {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.size(28.dp),
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
                         contentDescription = "Actions",
@@ -171,12 +154,10 @@ fun YoutubeVideoRow(
     }
 }
 
-private fun Long.formatSeconds(): String {
+private fun Long.formatGrid(): String {
     if (this <= 0L) return ""
-    val total = this
-    val h = total / 3600
-    val m = (total % 3600) / 60
-    val s = total % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s)
-    else "%d:%02d".format(m, s)
+    val h = this / 3600
+    val m = (this % 3600) / 60
+    val s = this % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }

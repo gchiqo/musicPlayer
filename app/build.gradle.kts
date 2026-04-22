@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.accompanist.permissions)
     implementation(libs.newpipe.extractor)
     implementation(libs.jaudiotagger)
+    implementation(libs.androidx.palette)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

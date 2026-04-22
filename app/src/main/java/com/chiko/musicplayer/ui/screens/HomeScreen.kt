@@ -16,12 +16,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,9 +34,14 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,13 +59,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,8 +89,10 @@ import com.chiko.musicplayer.ui.components.FolderGridItem
 import com.chiko.musicplayer.ui.components.FolderRow
 import com.chiko.musicplayer.ui.components.SongGridItem
 import com.chiko.musicplayer.ui.components.SongRow
-import com.chiko.musicplayer.ui.theme.AppGradient
-import com.chiko.musicplayer.ui.theme.NeonViolet
+import com.chiko.musicplayer.ui.components.resonanceScrollbar
+import com.chiko.musicplayer.youtube.YoutubeFeed
+import com.chiko.musicplayer.youtube.YoutubeFilter
+import com.chiko.musicplayer.youtube.YoutubeResult
 import com.chiko.musicplayer.youtube.YoutubeVideo
 
 @Composable
@@ -90,10 +110,14 @@ fun HomeScreen(
     searchQuery: String,
     contentPadding: PaddingValues,
     youtubeQuery: String,
-    youtubeResults: List<YoutubeVideo>,
+    youtubeResults: List<YoutubeResult>,
+    youtubeFeed: YoutubeFeed?,
+    youtubeFilter: YoutubeFilter,
+    youtubeGridView: Boolean,
     youtubeSearching: Boolean,
     youtubeResolving: Boolean,
     youtubeError: String?,
+    youtubeHistory: List<String>,
     onTabChange: (LibraryTab) -> Unit,
     onSortChange: (SortBy) -> Unit,
     onToggleViewMode: () -> Unit,
@@ -104,10 +128,26 @@ fun HomeScreen(
     onFolderBack: () -> Unit,
     onSongClick: (Song) -> Unit,
     onYoutubeSearch: (String) -> Unit,
+    onYoutubeRemoveHistory: (String) -> Unit,
+    onYoutubeFilterChange: (YoutubeFilter) -> Unit,
+    onYoutubeToggleGridView: () -> Unit,
+    onYoutubeCloseFeed: () -> Unit,
+    onYoutubeOpenResult: (YoutubeResult) -> Unit,
     onYoutubePlayAudio: (YoutubeVideo) -> Unit,
     onYoutubePlayVideo: (YoutubeVideo) -> Unit,
+    onYoutubePlayAudioFromFeed: (List<YoutubeVideo>, Int) -> Unit,
+    onYoutubePlayVideoFromFeed: (List<YoutubeVideo>, Int) -> Unit,
     onYoutubeDownloadAudio: (YoutubeVideo) -> Unit,
     onYoutubeDownloadVideo: (YoutubeVideo) -> Unit,
+    onYoutubeLoadMore: () -> Unit,
+    onOpenSettings: () -> Unit,
+    editMode: Boolean = false,
+    selectedIds: Set<Long> = emptySet(),
+    onEnterEditMode: (Long) -> Unit = {},
+    onExitEditMode: () -> Unit = {},
+    onToggleSelection: (Long) -> Unit = {},
+    onOpenMoveDialog: () -> Unit = {},
+    onReorder: (Long, Int, Int) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val isCompactHeight = LocalConfiguration.current.screenHeightDp < 500
@@ -116,7 +156,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppGradient),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         Column(
             modifier = Modifier
@@ -124,6 +164,12 @@ fun HomeScreen(
                 .padding(contentPadding),
         ) {
             when {
+                editMode -> EditToolbar(
+                    selectedCount = selectedIds.size,
+                    canMove = selectedIds.isNotEmpty(),
+                    onCancel = onExitEditMode,
+                    onMove = onOpenMoveDialog,
+                )
                 searchActive -> SearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
@@ -146,6 +192,7 @@ fun HomeScreen(
                     sortBy = sortBy,
                     onSortChange = onSortChange,
                     onOpenSearch = onOpenSearch,
+                    onOpenSettings = onOpenSettings,
                     showSort = showSort,
                 )
                 selectedFolder != null -> {
@@ -158,10 +205,12 @@ fun HomeScreen(
                         showSort = true,
                         showSearch = true,
                         onOpenSearch = onOpenSearch,
+                        onOpenSettings = onOpenSettings,
+                        showEdit = true,
+                        onEnterEditMode = { onEnterEditMode(-1L) },
                     )
                 }
                 else -> {
-                    AppHeader(songCount = songs.size)
                     LibraryTabs(tab = tab, onTabChange = onTabChange)
                     if (tab != LibraryTab.YouTube) {
                         ToolbarRow(
@@ -172,6 +221,9 @@ fun HomeScreen(
                             showSort = showSort,
                             showSearch = true,
                             onOpenSearch = onOpenSearch,
+                            onOpenSettings = onOpenSettings,
+                            showEdit = tab == LibraryTab.Songs,
+                            onEnterEditMode = { onEnterEditMode(-1L) },
                         )
                     }
                 }
@@ -188,14 +240,27 @@ fun HomeScreen(
                 selectedFolder == null && tab == LibraryTab.YouTube -> YoutubeTabContent(
                     initialQuery = youtubeQuery,
                     results = youtubeResults,
+                    feed = youtubeFeed,
+                    filter = youtubeFilter,
+                    gridView = youtubeGridView,
                     isSearching = youtubeSearching,
                     isResolving = youtubeResolving,
                     error = youtubeError,
+                    history = youtubeHistory,
                     onSubmit = onYoutubeSearch,
+                    onRemoveHistory = onYoutubeRemoveHistory,
+                    onFilterChange = onYoutubeFilterChange,
+                    onToggleGridView = onYoutubeToggleGridView,
+                    onCloseFeed = onYoutubeCloseFeed,
+                    onOpenResult = onYoutubeOpenResult,
                     onPlayAudio = onYoutubePlayAudio,
                     onPlayVideo = onYoutubePlayVideo,
+                    onPlayAudioFromFeed = onYoutubePlayAudioFromFeed,
+                    onPlayVideoFromFeed = onYoutubePlayVideoFromFeed,
                     onDownloadAudio = onYoutubeDownloadAudio,
                     onDownloadVideo = onYoutubeDownloadVideo,
+                    onLoadMore = onYoutubeLoadMore,
+                    onOpenSettings = onOpenSettings,
                     contentPadding = contentPadding,
                 )
                 else -> SongContent(
@@ -204,13 +269,21 @@ fun HomeScreen(
                     currentSongId = currentSongId,
                     isPlaying = isPlaying,
                     searchQuery = if (searchActive) searchQuery else "",
-                    onSongClick = onSongClick,
+                    onSongClick = { song ->
+                        if (editMode) onToggleSelection(song.id) else onSongClick(song)
+                    },
+                    editMode = editMode,
+                    selectedIds = selectedIds,
+                    onLongPress = { song -> if (!editMode) onEnterEditMode(song.id) },
+                    folderId = selectedFolder?.id,
+                    onReorder = onReorder,
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun SearchBar(
     query: String,
@@ -218,6 +291,8 @@ private fun SearchBar(
     onClose: () -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Row(
         modifier = Modifier
@@ -246,6 +321,26 @@ private fun SearchBar(
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = MaterialTheme.colorScheme.onBackground,
             ),
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = {
+                        onQueryChange("")
+                        focusRequester.requestFocus()
+                        keyboardController?.show()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {
+                keyboardController?.hide()
+                focusManager.clearFocus()
+            }),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
@@ -253,21 +348,12 @@ private fun SearchBar(
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,
-                cursorColor = NeonViolet,
+                cursorColor = MaterialTheme.colorScheme.primary,
             ),
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester),
         )
-        if (query.isNotEmpty()) {
-            IconButton(onClick = { onQueryChange("") }) {
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = "Clear",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
     }
 }
 
@@ -280,6 +366,7 @@ private fun CompactBrowseHeader(
     sortBy: SortBy,
     onSortChange: (SortBy) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
     showSort: Boolean,
 ) {
     Row(
@@ -333,6 +420,14 @@ private fun CompactBrowseHeader(
                     tint = MaterialTheme.colorScheme.onBackground,
                 )
             }
+        }
+        IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -395,7 +490,7 @@ private fun CompactTab(
     Text(
         text = label,
         style = MaterialTheme.typography.titleMedium,
-        color = if (selected) NeonViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
@@ -482,18 +577,71 @@ private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
             Tab(
                 selected = index == selectedIndex,
                 onClick = { onTabChange(t) },
-                selectedContentColor = NeonViolet,
+                selectedContentColor = MaterialTheme.colorScheme.primary,
                 unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                text = {
-                    Text(
-                        text = when (t) {
+                icon = {
+                    Icon(
+                        imageVector = when (t) {
+                            LibraryTab.Songs -> Icons.Rounded.MusicNote
+                            LibraryTab.Folders -> Icons.Rounded.Folder
+                            LibraryTab.YouTube -> Icons.Rounded.VideoLibrary
+                        },
+                        contentDescription = when (t) {
                             LibraryTab.Songs -> "Songs"
                             LibraryTab.Folders -> "Folders"
                             LibraryTab.YouTube -> "YouTube"
                         },
-                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.size(22.dp),
                     )
                 },
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditToolbar(
+    selectedCount: Int,
+    canMove: Boolean,
+    onCancel: () -> Unit,
+    onMove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onCancel) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "Exit edit mode",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        Text(
+            text = if (selectedCount == 0) "Edit — tap tracks to select"
+            else "$selectedCount selected",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+        androidx.compose.material3.TextButton(
+            onClick = onMove,
+            enabled = canMove,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Folder,
+                contentDescription = null,
+                tint = if (canMove) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Move",
+                color = if (canMove) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
             )
         }
     }
@@ -508,6 +656,9 @@ private fun ToolbarRow(
     showSort: Boolean,
     showSearch: Boolean,
     onOpenSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+    showEdit: Boolean = false,
+    onEnterEditMode: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -519,6 +670,15 @@ private fun ToolbarRow(
             SortMenu(current = sortBy, onChange = onSortChange)
         }
         Spacer(Modifier.weight(1f))
+        if (showEdit) {
+            IconButton(onClick = onEnterEditMode) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = "Edit",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+        }
         if (showSearch) {
             IconButton(onClick = onOpenSearch) {
                 Icon(
@@ -533,6 +693,17 @@ private fun ToolbarRow(
                 imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
                 contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
                 tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        IconButton(
+            onClick = onOpenSettings,
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -573,7 +744,7 @@ private fun SortMenu(current: SortBy, onChange: (SortBy) -> Unit) {
                     text = {
                         Text(
                             text = option.label,
-                            color = if (option == current) NeonViolet else MaterialTheme.colorScheme.onSurface,
+                            color = if (option == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
                     },
                     leadingIcon = {
@@ -581,7 +752,7 @@ private fun SortMenu(current: SortBy, onChange: (SortBy) -> Unit) {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
-                                tint = NeonViolet,
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         } else {
                             Spacer(Modifier.size(24.dp))
@@ -605,6 +776,11 @@ private fun SongContent(
     isPlaying: Boolean,
     searchQuery: String,
     onSongClick: (Song) -> Unit,
+    editMode: Boolean = false,
+    selectedIds: Set<Long> = emptySet(),
+    onLongPress: (Song) -> Unit = {},
+    folderId: Long? = null,
+    onReorder: (Long, Int, Int) -> Unit = { _, _, _ -> },
 ) {
     if (songs.isEmpty()) {
         val message = if (searchQuery.isNotEmpty()) "No tracks match \"$searchQuery\"."
@@ -612,31 +788,91 @@ private fun SongContent(
         EmptyState(message = message)
         return
     }
+    val canReorder = editMode && folderId != null
     when (viewMode) {
-        ViewMode.List -> LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(songs, key = { it.id }) { song ->
-                SongRow(
-                    song = song,
-                    isCurrent = song.id == currentSongId,
-                    isPlaying = isPlaying,
-                    onClick = { onSongClick(song) },
-                )
+        ViewMode.List -> {
+            val listState = rememberLazyListState()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            var draggedId by remember { mutableStateOf<Long?>(null) }
+            var dragStartIndex by remember { mutableStateOf(0) }
+            var dragOffsetY by remember { mutableStateOf(0f) }
+            val rowHeightPx = with(density) { 82.dp.toPx() }
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().resonanceScrollbar(listState),
+            ) {
+                itemsIndexed(songs, key = { _, it -> it.id }) { index, song ->
+                    val isDragging = song.id == draggedId
+                    val rowModifier = if (isDragging) {
+                        Modifier
+                            .zIndex(1f)
+                            .graphicsLayer { translationY = dragOffsetY }
+                    } else {
+                        Modifier
+                    }
+                    val dragHandleMod = if (canReorder) {
+                        Modifier.pointerInput(song.id, songs.size) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    draggedId = song.id
+                                    dragStartIndex = index
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, drag ->
+                                    change.consume()
+                                    dragOffsetY += drag.y
+                                },
+                                onDragEnd = {
+                                    val currentId = draggedId
+                                    if (currentId != null && folderId != null) {
+                                        val delta = (dragOffsetY / rowHeightPx).toInt()
+                                        val target = (dragStartIndex + delta)
+                                            .coerceIn(0, songs.size - 1)
+                                        if (target != dragStartIndex) {
+                                            onReorder(folderId, dragStartIndex, target)
+                                        }
+                                    }
+                                    draggedId = null
+                                    dragOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggedId = null
+                                    dragOffsetY = 0f
+                                },
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                    SongRow(
+                        song = song,
+                        isCurrent = song.id == currentSongId,
+                        isPlaying = isPlaying,
+                        onClick = { onSongClick(song) },
+                        modifier = rowModifier,
+                        editMode = editMode,
+                        selected = song.id in selectedIds,
+                        onLongPress = if (!editMode) ({ onLongPress(song) }) else null,
+                        showDragHandle = canReorder,
+                        dragHandleModifier = dragHandleMod,
+                    )
+                }
+                item { Spacer(Modifier.height(120.dp)) }
             }
-            item { Spacer(Modifier.height(120.dp)) }
         }
         ViewMode.Grid -> BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val cells: GridCells = if (maxWidth >= 600.dp)
                 GridCells.Adaptive(160.dp) else GridCells.Fixed(3)
+            val gridState = rememberLazyGridState()
             LazyVerticalGrid(
                 columns = cells,
+                state = gridState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().resonanceScrollbar(gridState),
             ) {
                 items(songs, key = { it.id }) { song ->
                     SongGridItem(
@@ -644,6 +880,9 @@ private fun SongContent(
                         isCurrent = song.id == currentSongId,
                         isPlaying = isPlaying,
                         onClick = { onSongClick(song) },
+                        editMode = editMode,
+                        selected = song.id in selectedIds,
+                        onLongPress = if (!editMode) ({ onLongPress(song) }) else null,
                     )
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(120.dp)) }
@@ -666,25 +905,31 @@ private fun FolderContent(
         return
     }
     when (viewMode) {
-        ViewMode.List -> LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(folders, key = { it.id }) { folder ->
-                FolderRow(folder = folder, onClick = { onFolderClick(folder) })
+        ViewMode.List -> {
+            val listState = rememberLazyListState()
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().resonanceScrollbar(listState),
+            ) {
+                items(folders, key = { it.id }) { folder ->
+                    FolderRow(folder = folder, onClick = { onFolderClick(folder) })
+                }
+                item { Spacer(Modifier.height(120.dp)) }
             }
-            item { Spacer(Modifier.height(120.dp)) }
         }
         ViewMode.Grid -> BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val cells: GridCells = if (maxWidth >= 600.dp)
                 GridCells.Adaptive(160.dp) else GridCells.Fixed(3)
+            val gridState = rememberLazyGridState()
             LazyVerticalGrid(
                 columns = cells,
+                state = gridState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().resonanceScrollbar(gridState),
             ) {
                 items(folders, key = { it.id }) { folder ->
                     FolderGridItem(folder = folder, onClick = { onFolderClick(folder) })
@@ -698,7 +943,7 @@ private fun FolderContent(
 @Composable
 private fun LoadingState() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = NeonViolet)
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 

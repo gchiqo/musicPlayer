@@ -29,8 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiko.musicplayer.data.Folder
-import com.chiko.musicplayer.ui.theme.NeonViolet
-import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
 @Composable
 fun FolderRow(
@@ -120,7 +118,10 @@ private fun FolderArtwork(
     fill: Boolean = false,
 ) {
     val gradient = Brush.linearGradient(
-        listOf(NeonViolet.copy(alpha = 0.4f), SurfaceCardElevated)
+        listOf(
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
     )
     val baseModifier = if (fill) Modifier.fillMaxSize() else Modifier.size(size)
     Box(
@@ -140,7 +141,7 @@ private fun FolderArtwork(
             Icon(
                 imageVector = Icons.Rounded.Folder,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.9f),
+                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
                 modifier = Modifier.size(iconSize),
             )
         }

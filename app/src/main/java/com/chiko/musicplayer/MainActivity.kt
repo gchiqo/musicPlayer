@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,7 @@ import com.chiko.musicplayer.ui.screens.EqualizerScreen
 import com.chiko.musicplayer.ui.screens.HomeScreen
 import com.chiko.musicplayer.ui.screens.PermissionScreen
 import com.chiko.musicplayer.ui.screens.PlayerScreen
+import com.chiko.musicplayer.ui.screens.SettingsScreen
 import com.chiko.musicplayer.ui.screens.VideoPlayerScreen
 import com.chiko.musicplayer.ui.screens.VisualizerScreen
 import com.chiko.musicplayer.ui.theme.MusicPlayerTheme
@@ -104,6 +106,7 @@ private fun App(scaffoldPadding: PaddingValues) {
     PlayerHost(scaffoldPadding)
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val viewModel: MusicViewModel = viewModel()
@@ -113,15 +116,34 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
         viewModel.loadSongs()
     }
 
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val notifPermission = rememberPermissionState(android.Manifest.permission.POST_NOTIFICATIONS)
+        var requestedNotif by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(notifPermission.status) {
+            if (!requestedNotif && notifPermission.status !is PermissionStatus.Granted) {
+                requestedNotif = true
+                notifPermission.launchPermissionRequest()
+            }
+        }
+    }
+
+    val effectiveAccent by viewModel.effectiveAccent.collectAsState()
+    val effectiveBackground by viewModel.effectiveBackground.collectAsState()
+    val backgroundArgb by viewModel.backgroundColor.collectAsState()
+    val dynamicFromArt by viewModel.dynamicFromArt.collectAsState()
     val displayedSongs by viewModel.displayedSongs.collectAsState()
     val folders by viewModel.folders.collectAsState()
     val selectedFolder by viewModel.selectedFolder.collectAsState()
     val currentSong by viewModel.currentSong.collectAsState()
     val youtubeQuery by viewModel.youtubeQuery.collectAsState()
     val youtubeResults by viewModel.youtubeResults.collectAsState()
+    val youtubeFeed by viewModel.youtubeFeed.collectAsState()
+    val youtubeFilter by viewModel.youtubeFilter.collectAsState()
+    val youtubeGridView by viewModel.youtubeGridView.collectAsState()
     val youtubeSearching by viewModel.youtubeSearching.collectAsState()
     val youtubeResolving by viewModel.youtubeResolving.collectAsState()
     val youtubeError by viewModel.youtubeError.collectAsState()
+    val youtubeHistory by viewModel.youtubeHistory.collectAsState()
     val tab by viewModel.tab.collectAsState()
     val sortBy by viewModel.sortBy.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
@@ -137,6 +159,8 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val showEqualizer by viewModel.showEqualizer.collectAsState()
     val showVisualizer by viewModel.showVisualizer.collectAsState()
     val showVideoPlayer by viewModel.showVideoPlayer.collectAsState()
+    val showSettings by viewModel.showSettings.collectAsState()
+    val accentArgb by viewModel.accentColor.collectAsState()
     val currentIsVideo by viewModel.currentIsVideo.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -148,16 +172,43 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     }
     val searchActive by viewModel.searchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val editMode by viewModel.editMode.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
+    val showMoveDialog by viewModel.showMoveDialog.collectAsState()
+    val consentRequest by viewModel.consentRequest.collectAsState()
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
-    BackHandler(enabled = showVideoPlayer) { viewModel.closeVideoPlayer() }
-    BackHandler(enabled = !showVideoPlayer && showVisualizer) { viewModel.closeVisualizer() }
-    BackHandler(enabled = !showVideoPlayer && !showVisualizer && showEqualizer) { viewModel.closeEqualizer() }
-    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && showPlayer) { viewModel.closePlayer() }
-    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
-    BackHandler(enabled = !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && !searchActive && selectedFolder != null) { viewModel.closeFolder() }
+    val consentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        viewModel.onConsentResult(result.resultCode == android.app.Activity.RESULT_OK)
+    }
+    LaunchedEffect(consentRequest) {
+        consentRequest?.let { sender ->
+            consentLauncher.launch(
+                androidx.activity.result.IntentSenderRequest.Builder(sender).build()
+            )
+        }
+    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BackHandler(enabled = showSettings) { viewModel.closeSettings() }
+    BackHandler(enabled = !showSettings && showVideoPlayer) { viewModel.closeVideoPlayer() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && showVisualizer) { viewModel.closeVisualizer() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && !showVisualizer && showEqualizer) { viewModel.closeEqualizer() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && !showVisualizer && !showEqualizer && showPlayer) { viewModel.closePlayer() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && searchActive) { viewModel.closeSearch() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && !searchActive && editMode) { viewModel.exitEditMode() }
+    BackHandler(enabled = !showSettings && !showVideoPlayer && !showVisualizer && !showEqualizer && !showPlayer && !searchActive && !editMode && selectedFolder != null) { viewModel.closeFolder() }
+
+    MusicPlayerTheme(
+        accent = Color(effectiveAccent),
+        background = Color(effectiveBackground),
+    ) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(effectiveBackground)),
+    ) {
         HomeScreen(
             songs = displayedSongs,
             folders = folders,
@@ -173,9 +224,13 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             contentPadding = scaffoldPadding,
             youtubeQuery = youtubeQuery,
             youtubeResults = youtubeResults,
+            youtubeFeed = youtubeFeed,
+            youtubeFilter = youtubeFilter,
+            youtubeGridView = youtubeGridView,
             youtubeSearching = youtubeSearching,
             youtubeResolving = youtubeResolving,
             youtubeError = youtubeError,
+            youtubeHistory = youtubeHistory,
             onTabChange = { viewModel.setTab(it) },
             onSortChange = { viewModel.setSort(it) },
             onToggleViewMode = { viewModel.toggleViewMode() },
@@ -186,11 +241,41 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             onFolderBack = { viewModel.closeFolder() },
             onSongClick = { viewModel.playSong(it) },
             onYoutubeSearch = { viewModel.searchYoutube(it) },
+            onYoutubeRemoveHistory = { viewModel.removeYoutubeHistory(it) },
+            onYoutubeFilterChange = { viewModel.setYoutubeFilter(it) },
+            onYoutubeToggleGridView = { viewModel.toggleYoutubeGridView() },
+            onYoutubeCloseFeed = { viewModel.clearYoutubeFeed() },
+            onYoutubeOpenResult = { viewModel.openYoutubeResult(it) },
             onYoutubePlayAudio = { viewModel.playYoutubeAudio(it) },
             onYoutubePlayVideo = { viewModel.playYoutubeVideo(it) },
+            onYoutubePlayAudioFromFeed = { videos, idx ->
+                viewModel.playYoutubeAudioFromPlaylist(videos, idx)
+            },
+            onYoutubePlayVideoFromFeed = { videos, idx ->
+                viewModel.playYoutubeVideoFromPlaylist(videos, idx)
+            },
             onYoutubeDownloadAudio = { viewModel.downloadYoutubeAudio(it) },
             onYoutubeDownloadVideo = { viewModel.downloadYoutubeVideo(it) },
+            onYoutubeLoadMore = { viewModel.loadMoreYoutube() },
+            onOpenSettings = { viewModel.openSettings() },
+            editMode = editMode,
+            selectedIds = selectedIds,
+            onEnterEditMode = { id -> viewModel.enterEditMode(id) },
+            onExitEditMode = { viewModel.exitEditMode() },
+            onToggleSelection = { id -> viewModel.toggleSelection(id) },
+            onOpenMoveDialog = { viewModel.openMoveDialog() },
+            onReorder = { folderId, from, to -> viewModel.reorderInFolder(folderId, from, to) },
         )
+
+        if (showMoveDialog) {
+            com.chiko.musicplayer.ui.components.MoveToFolderDialog(
+                existingFolders = folders,
+                currentFolderName = selectedFolder?.name,
+                selectedCount = selectedIds.size,
+                onDismiss = { viewModel.closeMoveDialog() },
+                onConfirm = { name -> viewModel.moveSelectedTo(name) },
+            )
+        }
 
         MiniPlayer(
             song = if (!showPlayer) currentSong else null,
@@ -280,5 +365,26 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                 )
             }
         }
+
+        AnimatedVisibility(
+            visible = showSettings,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            SettingsScreen(
+                accentArgb = accentArgb,
+                backgroundArgb = backgroundArgb,
+                dynamicFromArt = dynamicFromArt,
+                onAccentChange = { viewModel.setAccentColor(it) },
+                onBackgroundChange = { viewModel.setBackgroundColor(it) },
+                onDynamicFromArtChange = { viewModel.setDynamicFromArt(it) },
+                onClose = { viewModel.closeSettings() },
+                onClearYoutubeHistory = { viewModel.clearYoutubeHistory() },
+                onClearLibraryHistory = { viewModel.clearLibraryHistory() },
+                contentPadding = scaffoldPadding,
+            )
+        }
+    }
     }
 }

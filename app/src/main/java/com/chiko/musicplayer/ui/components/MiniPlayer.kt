@@ -37,8 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.chiko.musicplayer.data.Song
-import com.chiko.musicplayer.ui.theme.NeonViolet
-import com.chiko.musicplayer.ui.theme.SurfaceCardElevated
 
 @Composable
 fun MiniPlayer(
@@ -57,8 +55,9 @@ fun MiniPlayer(
         modifier = modifier,
     ) {
         if (song == null) return@AnimatedVisibility
+        val elevated = MaterialTheme.colorScheme.surfaceVariant
         val gradient = Brush.horizontalGradient(
-            listOf(SurfaceCardElevated, SurfaceCardElevated.copy(alpha = 0.85f))
+            listOf(elevated, elevated.copy(alpha = 0.85f))
         )
         Column(
             modifier = Modifier
@@ -127,8 +126,8 @@ fun MiniPlayer(
             ) {
                 LinearProgressIndicator(
                     progress = { progress.coerceIn(0f, 1f) },
-                    color = NeonViolet,
-                    trackColor = Color.White.copy(alpha = 0.12f),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                     strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
                     modifier = Modifier.fillMaxWidth(),
                 )
