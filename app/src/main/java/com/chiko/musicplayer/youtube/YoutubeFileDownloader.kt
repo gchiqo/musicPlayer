@@ -28,7 +28,8 @@ class YoutubeFileDownloader(private val context: Context) {
         withContext(Dispatchers.IO) {
             var temp: File? = null
             try {
-                val tmp = File(context.cacheDir, "yt-${System.currentTimeMillis()}.m4a")
+                val ext = if (video.source == StreamSource.SoundCloud) "mp3" else "m4a"
+                val tmp = File(context.cacheDir, "audio-${System.currentTimeMillis()}.$ext")
                 temp = tmp
                 Log.d(TAG, "downloadAudio: streaming to ${tmp.name}")
                 downloadToFile(streamUrl, tmp, onProgress)
@@ -41,7 +42,7 @@ class YoutubeFileDownloader(private val context: Context) {
                     Log.w(TAG, "no thumbnail bytes, saving without cover")
                 }
 
-                val filename = sanitize(video.title) + ".m4a"
+                val filename = sanitize(video.title) + "." + ext
                 val ok = saveAudioToPublicMusic(tmp, filename)
                 Log.d(TAG, "downloadAudio done: ok=$ok")
                 ok
@@ -153,12 +154,12 @@ class YoutubeFileDownloader(private val context: Context) {
         }
     }.getOrNull()
 
-    private fun embedArtwork(m4aFile: File, artBytes: ByteArray, video: YoutubeVideo) {
-        val audio = AudioFileIO.read(m4aFile)
+    private fun embedArtwork(audioFile: File, artBytes: ByteArray, video: YoutubeVideo) {
+        val audio = AudioFileIO.read(audioFile)
         val tag = audio.tagOrCreateAndSetDefault
         runCatching { tag.setField(FieldKey.TITLE, video.title) }
         runCatching { tag.setField(FieldKey.ARTIST, video.uploader) }
-        runCatching { tag.setField(FieldKey.ALBUM, "YouTube") }
+        runCatching { tag.setField(FieldKey.ALBUM, video.source.label) }
 
         val artwork = ArtworkFactory.getNew().apply {
             binaryData = artBytes
@@ -171,10 +172,11 @@ class YoutubeFileDownloader(private val context: Context) {
     }
 
     private fun saveAudioToPublicMusic(source: File, filename: String): Boolean {
+        val mime = if (filename.endsWith(".mp3", ignoreCase = true)) "audio/mpeg" else "audio/mp4"
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, filename)
-                put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+                put(MediaStore.Audio.Media.MIME_TYPE, mime)
                 put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC)
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
@@ -200,7 +202,7 @@ class YoutubeFileDownloader(private val context: Context) {
             MediaScannerConnection.scanFile(
                 context,
                 arrayOf(destFile.absolutePath),
-                arrayOf("audio/mp4"),
+                arrayOf(mime),
                 null,
             )
             true

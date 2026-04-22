@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.GridView
@@ -148,6 +149,8 @@ fun HomeScreen(
     onToggleSelection: (Long) -> Unit = {},
     onOpenMoveDialog: () -> Unit = {},
     onReorder: (Long, Int, Int) -> Unit = { _, _, _ -> },
+    streamSource: com.chiko.musicplayer.youtube.StreamSource = com.chiko.musicplayer.youtube.StreamSource.YouTube,
+    onStreamSourceChange: (com.chiko.musicplayer.youtube.StreamSource) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val isCompactHeight = LocalConfiguration.current.screenHeightDp < 500
@@ -194,6 +197,8 @@ fun HomeScreen(
                     onOpenSearch = onOpenSearch,
                     onOpenSettings = onOpenSettings,
                     showSort = showSort,
+                    streamSource = streamSource,
+                    onCycleStreamSource = { onStreamSourceChange(nextStreamSource(streamSource)) },
                 )
                 selectedFolder != null -> {
                     FolderHeader(folder = selectedFolder, onBack = onFolderBack)
@@ -211,7 +216,12 @@ fun HomeScreen(
                     )
                 }
                 else -> {
-                    LibraryTabs(tab = tab, onTabChange = onTabChange)
+                    LibraryTabs(
+                        tab = tab,
+                        onTabChange = onTabChange,
+                        streamSource = streamSource,
+                        onCycleStreamSource = { onStreamSourceChange(nextStreamSource(streamSource)) },
+                    )
                     if (tab != LibraryTab.YouTube) {
                         ToolbarRow(
                             viewMode = viewMode,
@@ -368,6 +378,8 @@ private fun CompactBrowseHeader(
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     showSort: Boolean,
+    streamSource: com.chiko.musicplayer.youtube.StreamSource = com.chiko.musicplayer.youtube.StreamSource.YouTube,
+    onCycleStreamSource: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -396,9 +408,12 @@ private fun CompactBrowseHeader(
         )
         Spacer(Modifier.width(2.dp))
         CompactTab(
-            label = "YouTube",
+            label = streamSource.label,
             selected = tab == LibraryTab.YouTube,
-            onClick = { onTabChange(LibraryTab.YouTube) },
+            onClick = {
+                if (tab == LibraryTab.YouTube) onCycleStreamSource()
+                else onTabChange(LibraryTab.YouTube)
+            },
         )
         Spacer(Modifier.weight(1f))
         if (tab != LibraryTab.YouTube) {
@@ -563,8 +578,20 @@ private fun FolderHeader(folder: Folder, onBack: () -> Unit) {
     }
 }
 
+private fun nextStreamSource(
+    current: com.chiko.musicplayer.youtube.StreamSource,
+): com.chiko.musicplayer.youtube.StreamSource {
+    val values = com.chiko.musicplayer.youtube.StreamSource.values()
+    return values[(values.indexOf(current) + 1) % values.size]
+}
+
 @Composable
-private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
+private fun LibraryTabs(
+    tab: LibraryTab,
+    onTabChange: (LibraryTab) -> Unit,
+    streamSource: com.chiko.musicplayer.youtube.StreamSource = com.chiko.musicplayer.youtube.StreamSource.YouTube,
+    onCycleStreamSource: () -> Unit = {},
+) {
     val tabs = remember { listOf(LibraryTab.Songs, LibraryTab.Folders, LibraryTab.YouTube) }
     val selectedIndex = tabs.indexOf(tab).coerceAtLeast(0)
     PrimaryTabRow(
@@ -576,7 +603,13 @@ private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
         tabs.forEachIndexed { index, t ->
             Tab(
                 selected = index == selectedIndex,
-                onClick = { onTabChange(t) },
+                onClick = {
+                    if (t == LibraryTab.YouTube && tab == LibraryTab.YouTube) {
+                        onCycleStreamSource()
+                    } else {
+                        onTabChange(t)
+                    }
+                },
                 selectedContentColor = MaterialTheme.colorScheme.primary,
                 unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 icon = {
@@ -584,12 +617,15 @@ private fun LibraryTabs(tab: LibraryTab, onTabChange: (LibraryTab) -> Unit) {
                         imageVector = when (t) {
                             LibraryTab.Songs -> Icons.Rounded.MusicNote
                             LibraryTab.Folders -> Icons.Rounded.Folder
-                            LibraryTab.YouTube -> Icons.Rounded.VideoLibrary
+                            LibraryTab.YouTube -> when (streamSource) {
+                                com.chiko.musicplayer.youtube.StreamSource.YouTube -> Icons.Rounded.VideoLibrary
+                                com.chiko.musicplayer.youtube.StreamSource.SoundCloud -> Icons.Rounded.Cloud
+                            }
                         },
                         contentDescription = when (t) {
                             LibraryTab.Songs -> "Songs"
                             LibraryTab.Folders -> "Folders"
-                            LibraryTab.YouTube -> "YouTube"
+                            LibraryTab.YouTube -> streamSource.label
                         },
                         modifier = Modifier.size(22.dp),
                     )

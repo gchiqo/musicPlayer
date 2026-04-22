@@ -174,6 +174,7 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val editMode by viewModel.editMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
+    val streamSource by viewModel.streamSource.collectAsState()
     val showMoveDialog by viewModel.showMoveDialog.collectAsState()
     val consentRequest by viewModel.consentRequest.collectAsState()
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
@@ -265,6 +266,8 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             onToggleSelection = { id -> viewModel.toggleSelection(id) },
             onOpenMoveDialog = { viewModel.openMoveDialog() },
             onReorder = { folderId, from, to -> viewModel.reorderInFolder(folderId, from, to) },
+            streamSource = streamSource,
+            onStreamSourceChange = { viewModel.setStreamSource(it) },
         )
 
         if (showMoveDialog) {

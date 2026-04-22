@@ -25,6 +25,8 @@ import com.chiko.musicplayer.data.SettingsStore
 import com.chiko.musicplayer.data.Song
 import com.chiko.musicplayer.player.MusicService
 import com.chiko.musicplayer.youtube.DownloadCenter
+import com.chiko.musicplayer.youtube.SoundCloudRepository
+import com.chiko.musicplayer.youtube.StreamSource
 import com.chiko.musicplayer.youtube.YoutubeFeed
 import com.chiko.musicplayer.youtube.YoutubeFileDownloader
 import com.chiko.musicplayer.youtube.YoutubeFilter
@@ -62,6 +64,63 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repository = MusicRepository(app)
     private val youtubeRepository = YoutubeRepository()
+    private val soundcloudRepository = SoundCloudRepository()
+
+    private val _streamSource = MutableStateFlow(StreamSource.YouTube)
+    val streamSource: StateFlow<StreamSource> = _streamSource.asStateFlow()
+
+    fun setStreamSource(source: StreamSource) {
+        if (_streamSource.value == source) return
+        _streamSource.value = source
+        _youtubeResults.value = emptyList()
+        _youtubeFeed.value = null
+        _youtubeQuery.value = ""
+        _youtubeError.value = null
+        searchNextPage = null
+        feedNextPage = null
+    }
+
+    fun cycleStreamSource() {
+        val values = StreamSource.values()
+        val next = values[(values.indexOf(_streamSource.value) + 1) % values.size]
+        setStreamSource(next)
+    }
+
+    private suspend fun searchFor(source: StreamSource, query: String, filter: YoutubeFilter) =
+        when (source) {
+            StreamSource.YouTube -> youtubeRepository.search(query, filter)
+            StreamSource.SoundCloud -> soundcloudRepository.search(query, filter)
+        }
+
+    private suspend fun searchNextFor(source: StreamSource, query: String, filter: YoutubeFilter, page: Page) =
+        when (source) {
+            StreamSource.YouTube -> youtubeRepository.searchNext(query, filter, page)
+            StreamSource.SoundCloud -> soundcloudRepository.searchNext(query, filter, page)
+        }
+
+    private suspend fun resolveAudioFor(video: YoutubeVideo) =
+        when (video.source) {
+            StreamSource.YouTube -> youtubeRepository.resolveAudioStream(video.url)
+            StreamSource.SoundCloud -> soundcloudRepository.resolveAudioStream(video.url)
+        }
+
+    private suspend fun loadPlaylistFor(source: StreamSource, url: String) =
+        when (source) {
+            StreamSource.YouTube -> youtubeRepository.loadPlaylist(url)
+            StreamSource.SoundCloud -> soundcloudRepository.loadPlaylist(url)
+        }
+
+    private suspend fun loadChannelFor(source: StreamSource, url: String) =
+        when (source) {
+            StreamSource.YouTube -> youtubeRepository.loadChannel(url)
+            StreamSource.SoundCloud -> soundcloudRepository.loadChannel(url)
+        }
+
+    private suspend fun playlistNextFor(source: StreamSource, url: String, page: Page) =
+        when (source) {
+            StreamSource.YouTube -> youtubeRepository.playlistNext(url, page)
+            StreamSource.SoundCloud -> soundcloudRepository.playlistNext(url, page)
+        }
     private val youtubeFileDownloader = YoutubeFileDownloader(app)
     private val downloadCenter = DownloadCenter(app)
     private val youtubeHistoryStore = SearchHistoryStore(app, "youtube")
@@ -487,7 +546,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             searchNextPage = null
             feedNextPage = null
             try {
-                val page = youtubeRepository.search(trimmed, _youtubeFilter.value)
+                val page = searchFor(_streamSource.value, trimmed, _youtubeFilter.value)
                 _youtubeResults.value = page.items
                 searchNextPage = page.nextPage
             } catch (t: Throwable) {
@@ -512,7 +571,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         loadingMore = true
         viewModelScope.launch {
             try {
-                val page = youtubeRepository.searchNext(query, _youtubeFilter.value, token)
+                val page = searchNextFor(_streamSource.value, query, _youtubeFilter.value, token)
                 val merged = _youtubeResults.value + page.items
                 _youtubeResults.value = merged
                 searchNextPage = page.nextPage
@@ -533,7 +592,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         loadingMore = true
         viewModelScope.launch {
             try {
-                val (videos, next) = youtubeRepository.playlistNext(feed.url, token)
+                val (videos, next) = playlistNextFor(_streamSource.value, feed.url, token)
                 val updatedFeed = feed.copy(videos = feed.videos + videos, nextPage = next)
                 _youtubeFeed.value = updatedFeed
                 feedNextPage = next
@@ -578,7 +637,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 MediaMetadata.Builder()
                     .setTitle(video.title)
                     .setArtist(video.uploader)
-                    .setAlbumTitle("YouTube")
+                    .setAlbumTitle(video.source.label)
                     .setArtworkUri(thumbnailUri)
                     .build()
             )
@@ -607,8 +666,12 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 if (i <= ytQueueIndex) break
                 val v = ytQueue[i]
                 val url = cache[v.url] ?: try {
-                    val s = if (forVideo) youtubeRepository.resolveVideoStream(v.url)
-                    else youtubeRepository.resolveAudioStream(v.url)
+                    val s = if (forVideo) {
+                        if (v.source == StreamSource.YouTube) youtubeRepository.resolveVideoStream(v.url)
+                        else null
+                    } else {
+                        resolveAudioFor(v)
+                    }
                     s?.url?.also { cache[v.url] = it }
                 } catch (_: Throwable) { null }
                 if (url != null && i > ytQueueIndex) {
@@ -632,8 +695,9 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _youtubeError.value = null
             _youtubeResults.value = emptyList()
             try {
-                _youtubeFeed.value = if (playlist) youtubeRepository.loadPlaylist(url)
-                else youtubeRepository.loadChannel(url)
+                val src = _streamSource.value
+                _youtubeFeed.value = if (playlist) loadPlaylistFor(src, url)
+                else loadChannelFor(src, url)
             } catch (t: Throwable) {
                 _youtubeError.value = t.message ?: "Failed to load"
                 _youtubeFeed.value = null
@@ -651,16 +715,31 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private fun detectYoutubeUrl(s: String): YoutubeUrlKind {
         val lower = s.lowercase()
         if (!(lower.startsWith("http://") || lower.startsWith("https://"))) return YoutubeUrlKind.None
-        if (!(lower.contains("youtube.com") || lower.contains("youtu.be"))) return YoutubeUrlKind.None
-        return when {
-            lower.contains("playlist?list=") ||
-                lower.contains("?list=") ||
-                lower.contains("&list=") -> YoutubeUrlKind.Playlist
-            lower.contains("/channel/") ||
-                lower.contains("/c/") ||
-                lower.contains("/@") ||
-                lower.contains("/user/") -> YoutubeUrlKind.Channel
-            else -> YoutubeUrlKind.None
+        return when (_streamSource.value) {
+            StreamSource.YouTube -> {
+                if (!(lower.contains("youtube.com") || lower.contains("youtu.be"))) YoutubeUrlKind.None
+                else when {
+                    lower.contains("playlist?list=") ||
+                        lower.contains("?list=") ||
+                        lower.contains("&list=") -> YoutubeUrlKind.Playlist
+                    lower.contains("/channel/") ||
+                        lower.contains("/c/") ||
+                        lower.contains("/@") ||
+                        lower.contains("/user/") -> YoutubeUrlKind.Channel
+                    else -> YoutubeUrlKind.None
+                }
+            }
+            StreamSource.SoundCloud -> {
+                if (!lower.contains("soundcloud.com")) YoutubeUrlKind.None
+                else when {
+                    lower.contains("/sets/") -> YoutubeUrlKind.Playlist
+                    // Only users (no track slug after user name):
+                    // Heuristic: soundcloud.com/<name> or soundcloud.com/<name>/tracks
+                    Regex("^https?://(?:www\\.)?soundcloud\\.com/[^/?#]+/?(?:\\?.*)?$").containsMatchIn(s) -> YoutubeUrlKind.Channel
+                    lower.endsWith("/tracks") || lower.endsWith("/tracks/") -> YoutubeUrlKind.Channel
+                    else -> YoutubeUrlKind.None
+                }
+            }
         }
     }
 
@@ -704,7 +783,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 _youtubeResolving.value = true
                 val resolved = try {
-                    youtubeRepository.resolveAudioStream(video.url)
+                    resolveAudioFor(video)
                 } catch (t: Throwable) {
                     Log.e("Resonance", "playYoutubeAudio resolve failed", t)
                     _toast.value = t.message ?: "Unable to load audio"
@@ -724,7 +803,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     MediaMetadata.Builder()
                         .setTitle(video.title)
                         .setArtist(video.uploader)
-                        .setAlbumTitle("YouTube")
+                        .setAlbumTitle(video.source.label)
                         .setArtworkUri(thumbnailUri)
                         .build()
                 )
@@ -741,6 +820,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playYoutubeVideo(video: YoutubeVideo) {
+        if (video.source != StreamSource.YouTube) {
+            _toast.value = "Video playback is YouTube-only"
+            return
+        }
         ytQueue = emptyList()
         ytQueueIndex = -1
         queueSource = QueueSource.None
@@ -780,7 +863,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     MediaMetadata.Builder()
                         .setTitle(video.title)
                         .setArtist(video.uploader)
-                        .setAlbumTitle("YouTube")
+                        .setAlbumTitle(video.source.label)
                         .setArtworkUri(thumbnailUri)
                         .build()
                 )
@@ -805,18 +888,23 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun downloadYoutubeAudio(video: YoutubeVideo) {
-        Log.d("Resonance", "downloadYoutubeAudio tap: ${video.title}")
+        Log.d("Resonance", "downloadAudio tap: ${video.title} (${video.source.label})")
         viewModelScope.launch {
             _youtubeResolving.value = true
             val stream = try {
-                youtubeRepository.resolveAudioStream(video.url)
+                resolveAudioFor(video)
             } catch (t: Throwable) {
-                Log.e("Resonance", "downloadYoutubeAudio resolve failed", t)
+                Log.e("Resonance", "downloadAudio resolve failed", t)
                 _toast.value = t.message ?: "Unable to resolve audio"
                 null
             } finally {
                 _youtubeResolving.value = false
             } ?: return@launch
+            val mime = stream.mimeType.orEmpty().lowercase()
+            if (mime.contains("mpegurl") || stream.url.contains(".m3u8")) {
+                _toast.value = "HLS download not supported yet"
+                return@launch
+            }
             _toast.value = "Starting download…"
             downloadCenter.downloadAudio(video, stream.url) { ok ->
                 viewModelScope.launch {
@@ -828,6 +916,10 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun downloadYoutubeVideo(video: YoutubeVideo) {
+        if (video.source != StreamSource.YouTube) {
+            _toast.value = "Video download is YouTube-only"
+            return
+        }
         Log.d("Resonance", "downloadYoutubeVideo tap: ${video.title}")
         viewModelScope.launch {
             _youtubeResolving.value = true
