@@ -52,25 +52,41 @@ import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 
 class MainActivity : ComponentActivity() {
+
+    // Bumped each time we're (re)launched from the notification, so the
+    // composition can react and maximize the now-playing screen.
+    private var openPlayerTick by mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true) openPlayerTick++
         setContent {
             MusicPlayerTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Transparent,
                 ) { padding ->
-                    App(padding)
+                    App(padding, openPlayerTick)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)) openPlayerTick++
+    }
+
+    companion object {
+        const val EXTRA_OPEN_PLAYER = "com.chiko.musicplayer.OPEN_PLAYER"
     }
 }
 
 @OptIn(ExperimentalPermissionsApi::class, UnstableApi::class)
 @Composable
-private fun App(scaffoldPadding: PaddingValues) {
+private fun App(scaffoldPadding: PaddingValues, openPlayerTick: Int) {
     val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         android.Manifest.permission.READ_MEDIA_AUDIO
     } else {
@@ -103,13 +119,17 @@ private fun App(scaffoldPadding: PaddingValues) {
         return
     }
 
-    PlayerHost(scaffoldPadding)
+    PlayerHost(scaffoldPadding, openPlayerTick)
 }
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-private fun PlayerHost(scaffoldPadding: PaddingValues) {
+private fun PlayerHost(scaffoldPadding: PaddingValues, openPlayerTick: Int) {
     val viewModel: MusicViewModel = viewModel()
+
+    LaunchedEffect(openPlayerTick) {
+        if (openPlayerTick > 0) viewModel.requestOpenPlayer()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.connect()

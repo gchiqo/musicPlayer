@@ -542,6 +542,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             _currentSongId.value = mediaItem?.mediaId?.toLongOrNull()
             _durationMs.value = controller?.duration?.coerceAtLeast(0L) ?: 0L
+            fulfillOpenPlayerIfPossible()
             saveLastPlaybackState()
             val newMediaId = mediaItem?.mediaId
             if (newMediaId != null && ytQueue.isNotEmpty()) {
@@ -601,6 +602,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 _playbackSpeed.value = c.playbackParameters.speed
             }
             maybeRestorePlayback()
+            fulfillOpenPlayerIfPossible()
             startPositionLoop()
         }, MoreExecutors.directExecutor())
     }
@@ -666,6 +668,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         c.prepare()
         _currentSongId.value = restored[newIndex].id
         _positionMs.value = saved.positionMs
+        fulfillOpenPlayerIfPossible()
     }
 
     /** Snapshot the local queue/index/position for a future cold start. */
@@ -1191,6 +1194,26 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openPlayer() { _showPlayer.value = true }
     fun closePlayer() { _showPlayer.value = false }
+
+    private var pendingOpenPlayer = false
+
+    /**
+     * Notification tap: maximize the now-playing screen. On a cold start the
+     * current item isn't known yet, so we latch the request and fulfill it as
+     * soon as the controller reconnects or the queue is restored.
+     */
+    fun requestOpenPlayer() {
+        pendingOpenPlayer = true
+        fulfillOpenPlayerIfPossible()
+    }
+
+    private fun fulfillOpenPlayerIfPossible() {
+        if (!pendingOpenPlayer) return
+        if (_currentSongId.value == null && _youtubeCurrent.value == null) return
+        pendingOpenPlayer = false
+        if (_currentIsVideo.value) _showVideoPlayer.value = true
+        else _showPlayer.value = true
+    }
 
     fun openEqualizer() { _showEqualizer.value = true }
     fun closeEqualizer() { _showEqualizer.value = false }
