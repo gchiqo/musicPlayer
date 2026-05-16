@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Person
@@ -97,6 +98,8 @@ fun YoutubeTabContent(
     onPlayVideoFromFeed: (List<YoutubeVideo>, Int) -> Unit,
     onDownloadAudio: (YoutubeVideo) -> Unit,
     onDownloadVideo: (YoutubeVideo) -> Unit,
+    onDownloadPlaylist: () -> Unit,
+    playlistDownloadLabel: String?,
     onLoadMore: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -223,6 +226,8 @@ fun YoutubeTabContent(
                     onPlayVideoFromFeed = onPlayVideoFromFeed,
                     onDownloadAudio = onDownloadAudio,
                     onDownloadVideo = onDownloadVideo,
+                    onDownloadPlaylist = onDownloadPlaylist,
+                    playlistDownloadLabel = playlistDownloadLabel,
                     onLoadMore = onLoadMore,
                 )
                 results.isEmpty() && initialQuery.isNotBlank() ->
@@ -474,7 +479,12 @@ private fun NearEndLoaderGrid(
 }
 
 @Composable
-private fun FeedHeader(feed: YoutubeFeed, onClose: () -> Unit) {
+private fun FeedHeader(
+    feed: YoutubeFeed,
+    onClose: () -> Unit,
+    onDownloadPlaylist: () -> Unit,
+    playlistDownloadLabel: String?,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -524,6 +534,34 @@ private fun FeedHeader(feed: YoutubeFeed, onClose: () -> Unit) {
                 )
             }
         }
+        if (feed.kind == YoutubeFeed.Kind.Playlist) {
+            if (playlistDownloadLabel != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(end = 4.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = playlistDownloadLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                IconButton(onClick = onDownloadPlaylist) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = "Download playlist",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
         IconButton(onClick = onClose) {
             Icon(
                 imageVector = Icons.Rounded.Close,
@@ -562,6 +600,8 @@ private fun FeedView(
     onPlayVideoFromFeed: (List<YoutubeVideo>, Int) -> Unit,
     onDownloadAudio: (YoutubeVideo) -> Unit,
     onDownloadVideo: (YoutubeVideo) -> Unit,
+    onDownloadPlaylist: () -> Unit,
+    playlistDownloadLabel: String?,
     onLoadMore: () -> Unit,
 ) {
     if (gridView) {
@@ -582,7 +622,12 @@ private fun FeedView(
                 modifier = Modifier.fillMaxSize().resonanceScrollbar(gridState),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    FeedHeader(feed = feed, onClose = onClose)
+                    FeedHeader(
+                        feed = feed,
+                        onClose = onClose,
+                        onDownloadPlaylist = onDownloadPlaylist,
+                        playlistDownloadLabel = playlistDownloadLabel,
+                    )
                 }
                 gridItemsIndexed(feed.videos, key = { _, v -> v.url }) { index, video ->
                     YoutubeGridItem(
@@ -611,7 +656,12 @@ private fun FeedView(
         modifier = Modifier.fillMaxSize().resonanceScrollbar(state),
     ) {
         item {
-            FeedHeader(feed = feed, onClose = onClose)
+            FeedHeader(
+                feed = feed,
+                onClose = onClose,
+                onDownloadPlaylist = onDownloadPlaylist,
+                playlistDownloadLabel = playlistDownloadLabel,
+            )
         }
         itemsIndexed(feed.videos, key = { _, v -> v.url }) { index, video ->
             YoutubeVideoRow(

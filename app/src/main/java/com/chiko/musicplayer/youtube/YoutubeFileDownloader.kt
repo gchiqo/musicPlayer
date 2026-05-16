@@ -23,6 +23,7 @@ class YoutubeFileDownloader(private val context: Context) {
     suspend fun downloadAudio(
         video: YoutubeVideo,
         streamUrl: String,
+        folder: String? = null,
         onProgress: ((written: Long, total: Long) -> Unit)? = null,
     ): Boolean =
         withContext(Dispatchers.IO) {
@@ -43,7 +44,7 @@ class YoutubeFileDownloader(private val context: Context) {
                 }
 
                 val filename = sanitize(video.title) + "." + ext
-                val ok = saveAudioToPublicMusic(tmp, filename)
+                val ok = saveAudioToPublicMusic(tmp, filename, folder)
                 Log.d(TAG, "downloadAudio done: ok=$ok")
                 ok
             } catch (t: Throwable) {
@@ -171,13 +172,19 @@ class YoutubeFileDownloader(private val context: Context) {
         AudioFileIO.write(audio)
     }
 
-    private fun saveAudioToPublicMusic(source: File, filename: String): Boolean {
+    private fun saveAudioToPublicMusic(source: File, filename: String, subfolder: String?): Boolean {
         val mime = if (filename.endsWith(".mp3", ignoreCase = true)) "audio/mpeg" else "audio/mp4"
+        val safeFolder = subfolder?.let { sanitize(it) }?.takeIf { it.isNotBlank() }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val relativePath = if (safeFolder != null) {
+                "${Environment.DIRECTORY_MUSIC}/$safeFolder"
+            } else {
+                Environment.DIRECTORY_MUSIC
+            }
             val values = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, filename)
                 put(MediaStore.Audio.Media.MIME_TYPE, mime)
-                put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC)
+                put(MediaStore.Audio.Media.RELATIVE_PATH, relativePath)
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
             val collection = MediaStore.Audio.Media
@@ -195,7 +202,8 @@ class YoutubeFileDownloader(private val context: Context) {
             true
         } else {
             @Suppress("DEPRECATION")
-            val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+            val baseDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+            val musicDir = if (safeFolder != null) File(baseDir, safeFolder) else baseDir
             musicDir.mkdirs()
             val destFile = File(musicDir, filename)
             source.copyTo(destFile, overwrite = true)

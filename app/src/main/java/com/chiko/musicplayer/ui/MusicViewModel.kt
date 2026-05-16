@@ -36,7 +36,9 @@ import com.chiko.musicplayer.youtube.YoutubeVideo
 import org.schabi.newpipe.extractor.Page
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +59,16 @@ enum class SortBy(val label: String) {
 }
 
 enum class ViewMode { List, Grid }
+
+private const val PLAYLIST_DOWNLOAD_CAP = 1000
+
+/** Progress of an in-flight "download whole playlist" job. */
+data class PlaylistDownloadState(
+    val done: Int,
+    val failed: Int,
+    val total: Int,
+    val folder: String,
+)
 
 enum class LibraryTab { Songs, Folders, YouTube }
 
@@ -258,6 +270,15 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val _consentRequest = MutableStateFlow<IntentSender?>(null)
     val consentRequest: StateFlow<IntentSender?> = _consentRequest.asStateFlow()
 
+    private val _showPlaylistDownloadDialog = MutableStateFlow(false)
+    val showPlaylistDownloadDialog: StateFlow<Boolean> =
+        _showPlaylistDownloadDialog.asStateFlow()
+
+    private val _playlistDownload = MutableStateFlow<PlaylistDownloadState?>(null)
+    val playlistDownload: StateFlow<PlaylistDownloadState?> = _playlistDownload.asStateFlow()
+
+    private var playlistDownloadJob: Job? = null
+
     private var pendingMove: Pair<List<Uri>, String>? = null
 
     fun enterEditMode(initialId: Long? = null) {
@@ -324,6 +345,94 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         playlistOrderStore.moveItem(folderId, fromIndex, toIndex, ordered)
         if (settingsStore.sortBy.value != SortBy.Custom) {
             settingsStore.setSortBy(SortBy.Custom)
+        }
+    }
+
+    fun openPlaylistDownloadDialog() {
+        val feed = _youtubeFeed.value
+        if (feed == null || feed.videos.isEmpty()) {
+            _toast.value = "Open a playlist first"
+            return
+        }
+        if (playlistDownloadJob?.isActive == true) {
+            _toast.value = "A playlist download is already running"
+            return
+        }
+        _showPlaylistDownloadDialog.value = true
+    }
+
+    fun closePlaylistDownloadDialog() { _showPlaylistDownloadDialog.value = false }
+
+    fun cancelPlaylistDownload() {
+        playlistDownloadJob?.cancel()
+        playlistDownloadJob = null
+        _playlistDownload.value = null
+        _toast.value = "Playlist download stopped"
+    }
+
+    /** Download every track of the currently-open feed into Music/<folderName>. */
+    fun downloadPlaylistTo(folderName: String) {
+        _showPlaylistDownloadDialog.value = false
+        val feed = _youtubeFeed.value ?: return
+        val folder = folderName.trim()
+        if (folder.isBlank()) return
+        val source = _streamSource.value
+        playlistDownloadJob?.cancel()
+        playlistDownloadJob = viewModelScope.launch {
+            // Pull in the rest of the playlist's pages so the whole thing is
+            // queued, not just what's been scrolled into view.
+            val videos = ArrayList(feed.videos)
+            if (feed.kind == YoutubeFeed.Kind.Playlist) {
+                var page = feed.nextPage
+                while (page != null && videos.size < PLAYLIST_DOWNLOAD_CAP) {
+                    val (more, next) = try {
+                        playlistNextFor(source, feed.url, page)
+                    } catch (t: Throwable) {
+                        Log.w("Resonance", "playlist download: pagination stopped", t)
+                        break
+                    }
+                    videos.addAll(more)
+                    page = next
+                }
+            }
+            val total = videos.size
+            if (total == 0) {
+                _toast.value = "Nothing to download"
+                return@launch
+            }
+            _toast.value = "Downloading $total track${if (total == 1) "" else "s"} to \"$folder\""
+            var done = 0
+            var failed = 0
+            _playlistDownload.value = PlaylistDownloadState(0, 0, total, folder)
+            for (video in videos) {
+                val stream = try {
+                    resolveAudioFor(video)
+                } catch (t: Throwable) {
+                    Log.w("Resonance", "playlist download: resolve failed for ${video.title}", t)
+                    null
+                }
+                val mime = stream?.mimeType.orEmpty().lowercase()
+                val unusable = stream == null ||
+                    mime.contains("mpegurl") || stream.url.contains(".m3u8")
+                val ok = if (unusable) {
+                    false
+                } else {
+                    suspendCancellableCoroutine { cont ->
+                        downloadCenter.downloadAudio(video, stream!!.url, folder) { result ->
+                            if (cont.isActive) cont.resumeWith(Result.success(result))
+                        }
+                    }
+                }
+                if (ok) done++ else failed++
+                _playlistDownload.value = PlaylistDownloadState(done, failed, total, folder)
+            }
+            _playlistDownload.value = null
+            playlistDownloadJob = null
+            _toast.value = buildString {
+                append("Saved $done/$total to \"$folder\"")
+                if (failed > 0) append(" · $failed failed")
+            }
+            loadSongs()
         }
     }
 

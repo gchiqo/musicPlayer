@@ -140,6 +140,8 @@ fun HomeScreen(
     onYoutubePlayVideoFromFeed: (List<YoutubeVideo>, Int) -> Unit,
     onYoutubeDownloadAudio: (YoutubeVideo) -> Unit,
     onYoutubeDownloadVideo: (YoutubeVideo) -> Unit,
+    onYoutubeDownloadPlaylist: () -> Unit,
+    youtubePlaylistDownloadLabel: String? = null,
     onYoutubeLoadMore: () -> Unit,
     onOpenSettings: () -> Unit,
     editMode: Boolean = false,
@@ -266,6 +268,8 @@ fun HomeScreen(
                     onPlayVideoFromFeed = onYoutubePlayVideoFromFeed,
                     onDownloadAudio = onYoutubeDownloadAudio,
                     onDownloadVideo = onYoutubeDownloadVideo,
+                    onDownloadPlaylist = onYoutubeDownloadPlaylist,
+                    playlistDownloadLabel = youtubePlaylistDownloadLabel,
                     onLoadMore = onYoutubeLoadMore,
                     contentPadding = contentPadding,
                 )

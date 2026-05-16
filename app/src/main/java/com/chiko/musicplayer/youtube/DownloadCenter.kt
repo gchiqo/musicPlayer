@@ -32,6 +32,7 @@ class DownloadCenter(private val context: Context) {
     fun downloadAudio(
         video: YoutubeVideo,
         streamUrl: String,
+        folder: String? = null,
         onDone: (Boolean) -> Unit = {},
     ) {
         scope.launch {
@@ -39,7 +40,7 @@ class DownloadCenter(private val context: Context) {
             var lastPct = -1
             show(notifId, video.title, 0, ongoing = true)
 
-            val ok = downloader.downloadAudio(video, streamUrl) { written, total ->
+            val ok = downloader.downloadAudio(video, streamUrl, folder) { written, total ->
                 if (total <= 0L) return@downloadAudio
                 val pct = ((written * 100L) / total).toInt().coerceIn(0, 100)
                 if (pct != lastPct) {

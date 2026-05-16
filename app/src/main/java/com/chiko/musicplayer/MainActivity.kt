@@ -177,6 +177,8 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
     val streamSource by viewModel.streamSource.collectAsState()
     val showMoveDialog by viewModel.showMoveDialog.collectAsState()
     val consentRequest by viewModel.consentRequest.collectAsState()
+    val showPlaylistDownloadDialog by viewModel.showPlaylistDownloadDialog.collectAsState()
+    val playlistDownload by viewModel.playlistDownload.collectAsState()
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
     val consentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -257,6 +259,10 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
             },
             onYoutubeDownloadAudio = { viewModel.downloadYoutubeAudio(it) },
             onYoutubeDownloadVideo = { viewModel.downloadYoutubeVideo(it) },
+            onYoutubeDownloadPlaylist = { viewModel.openPlaylistDownloadDialog() },
+            youtubePlaylistDownloadLabel = playlistDownload?.let {
+                "${it.done + it.failed}/${it.total}"
+            },
             onYoutubeLoadMore = { viewModel.loadMoreYoutube() },
             onOpenSettings = { viewModel.openSettings() },
             editMode = editMode,
@@ -277,6 +283,16 @@ private fun PlayerHost(scaffoldPadding: PaddingValues) {
                 selectedCount = selectedIds.size,
                 onDismiss = { viewModel.closeMoveDialog() },
                 onConfirm = { name -> viewModel.moveSelectedTo(name) },
+            )
+        }
+
+        if (showPlaylistDownloadDialog) {
+            com.chiko.musicplayer.ui.components.PlaylistDownloadDialog(
+                existingFolders = folders,
+                trackCount = youtubeFeed?.videos?.size ?: 0,
+                suggestedName = youtubeFeed?.title.orEmpty(),
+                onDismiss = { viewModel.closePlaylistDownloadDialog() },
+                onConfirm = { name -> viewModel.downloadPlaylistTo(name) },
             )
         }
 
