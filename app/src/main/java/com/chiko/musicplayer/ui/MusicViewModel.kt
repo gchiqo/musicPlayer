@@ -78,12 +78,15 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val youtubeRepository = YoutubeRepository()
     private val soundcloudRepository = SoundCloudRepository()
 
-    private val _streamSource = MutableStateFlow(StreamSource.YouTube)
+    private val settingsStore = SettingsStore.getInstance(app)
+
+    private val _streamSource = MutableStateFlow(settingsStore.loadLastStreamSource())
     val streamSource: StateFlow<StreamSource> = _streamSource.asStateFlow()
 
     fun setStreamSource(source: StreamSource) {
         if (_streamSource.value == source) return
         _streamSource.value = source
+        settingsStore.setLastStreamSource(source)
         _youtubeResults.value = emptyList()
         _youtubeFeed.value = null
         _youtubeQuery.value = ""
@@ -137,7 +140,6 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val downloadCenter = DownloadCenter(app)
     private val youtubeHistoryStore = SearchHistoryStore(app, "youtube")
     private val libraryHistoryStore = SearchHistoryStore(app, "library")
-    private val settingsStore = SettingsStore.getInstance(app)
     private val playlistOrderStore = com.chiko.musicplayer.data.PlaylistOrderStore.getInstance(app)
 
     val accentColor: StateFlow<Int> = settingsStore.accentColor
@@ -252,10 +254,15 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     val sortBy: StateFlow<SortBy> = settingsStore.sortBy
     val viewMode: StateFlow<ViewMode> = settingsStore.viewMode
 
-    private val _tab = MutableStateFlow(LibraryTab.Songs)
+    private val _tab = MutableStateFlow(settingsStore.loadLastTab())
     val tab: StateFlow<LibraryTab> = _tab.asStateFlow()
 
-    private val _selectedFolderId = MutableStateFlow<Long?>(null)
+    // Only meaningful on the Folders tab — restoring it elsewhere would hijack
+    // the Songs/YouTube view with a stale folder header.
+    private val _selectedFolderId = MutableStateFlow(
+        settingsStore.loadLastFolderId()
+            .takeIf { it >= 0 && settingsStore.loadLastTab() == LibraryTab.Folders }
+    )
     val selectedFolderId: StateFlow<Long?> = _selectedFolderId.asStateFlow()
 
     private val _editMode = MutableStateFlow(false)
@@ -510,6 +517,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
+    // Cold-start restore: we only want to rebuild the queue once, and only
+    // if the service was actually killed (empty queue on reconnect).
+    private var restoredPlayback = false
+    private var positionSaveTick = 0
+
     private val mediaObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) { loadSongs() }
     }
@@ -530,6 +542,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             _currentSongId.value = mediaItem?.mediaId?.toLongOrNull()
             _durationMs.value = controller?.duration?.coerceAtLeast(0L) ?: 0L
+            saveLastPlaybackState()
             val newMediaId = mediaItem?.mediaId
             if (newMediaId != null && ytQueue.isNotEmpty()) {
                 val newIdx = ytQueue.indexOfFirst { it.id.toString() == newMediaId }
@@ -587,6 +600,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 _repeatMode.value = c.repeatMode
                 _playbackSpeed.value = c.playbackParameters.speed
             }
+            maybeRestorePlayback()
             startPositionLoop()
         }, MoreExecutors.directExecutor())
     }
@@ -599,6 +613,12 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                     if (_durationMs.value <= 0L) {
                         _durationMs.value = c.duration.coerceAtLeast(0L)
                     }
+                    // Persist position roughly every 5s so a cold relaunch
+                    // resumes near where the user left off.
+                    if (++positionSaveTick >= 10) {
+                        positionSaveTick = 0
+                        saveLastPlaybackState()
+                    }
                 }
                 delay(500)
             }
@@ -610,7 +630,58 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             _isLoading.value = true
             _songs.value = repository.loadSongs()
             _isLoading.value = false
+            // A selected folder that no longer exists shouldn't strand the UI.
+            val fid = _selectedFolderId.value
+            if (fid != null && _songs.value.none { it.folderId == fid }) {
+                _selectedFolderId.value = null
+                settingsStore.setLastFolderId(null)
+            }
+            maybeRestorePlayback()
         }
+    }
+
+    /**
+     * Cold-start only: if the playback service was killed (queue empty) but we
+     * saved a local queue last time, rebuild it paused at the saved position so
+     * the app reopens on the same song. No-op if the service is still alive
+     * (connect() already picked up the live current item).
+     */
+    private fun maybeRestorePlayback() {
+        if (restoredPlayback) return
+        val c = controller ?: return
+        if (c.mediaItemCount > 0) { restoredPlayback = true; return }
+        val songs = _songs.value
+        if (songs.isEmpty()) return // retry once songs finish loading
+        restoredPlayback = true
+        val saved = settingsStore.loadLastPlayback() ?: return
+        val byId = songs.associateBy { it.id }
+        val restored = saved.queueIds.mapNotNull { byId[it] }
+        if (restored.isEmpty()) {
+            settingsStore.clearLastPlayback()
+            return
+        }
+        val savedSongId = saved.queueIds.getOrNull(saved.index)
+        val newIndex = restored.indexOfFirst { it.id == savedSongId }.coerceAtLeast(0)
+        c.setMediaItems(restored.map { it.toMediaItem() }, newIndex, saved.positionMs)
+        c.prepare()
+        _currentSongId.value = restored[newIndex].id
+        _positionMs.value = saved.positionMs
+    }
+
+    /** Snapshot the local queue/index/position for a future cold start. */
+    private fun saveLastPlaybackState() {
+        if (ytQueue.isNotEmpty()) return // streamed sources can't be restored
+        val c = controller ?: return
+        val count = c.mediaItemCount
+        if (count == 0) return
+        val ids = (0 until count).mapNotNull {
+            c.getMediaItemAt(it).mediaId.toLongOrNull()
+        }
+        settingsStore.saveLastPlayback(
+            ids,
+            c.currentMediaItemIndex.coerceAtLeast(0),
+            c.currentPosition.coerceAtLeast(0L),
+        )
     }
 
     fun playSong(song: Song) {
@@ -626,6 +697,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         ytQueue = emptyList()
         ytQueueIndex = -1
         _showPlayer.value = true
+        restoredPlayback = true
+        saveLastPlaybackState()
     }
 
     fun getController(): MediaController? = controller
@@ -1134,10 +1207,20 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun setTab(t: LibraryTab) {
         _tab.value = t
-        if (t == LibraryTab.Songs) _selectedFolderId.value = null
+        settingsStore.setLastTab(t)
+        if (t == LibraryTab.Songs) {
+            _selectedFolderId.value = null
+            settingsStore.setLastFolderId(null)
+        }
     }
-    fun openFolder(folder: Folder) { _selectedFolderId.value = folder.id }
-    fun closeFolder() { _selectedFolderId.value = null }
+    fun openFolder(folder: Folder) {
+        _selectedFolderId.value = folder.id
+        settingsStore.setLastFolderId(folder.id)
+    }
+    fun closeFolder() {
+        _selectedFolderId.value = null
+        settingsStore.setLastFolderId(null)
+    }
 
     fun openSearch() { _searchActive.value = true }
     fun closeSearch() {
@@ -1166,6 +1249,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        saveLastPlaybackState()
         getApplication<Application>().contentResolver.unregisterContentObserver(mediaObserver)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }

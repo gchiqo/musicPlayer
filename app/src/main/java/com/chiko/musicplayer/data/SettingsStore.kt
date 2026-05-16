@@ -3,8 +3,10 @@ package com.chiko.musicplayer.data
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import com.chiko.musicplayer.ui.LibraryTab
 import com.chiko.musicplayer.ui.SortBy
 import com.chiko.musicplayer.ui.ViewMode
+import com.chiko.musicplayer.youtube.StreamSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,6 +63,64 @@ class SettingsStore private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_DYNAMIC, v).apply()
     }
 
+    // --- Last open place: restored on a cold app launch ---
+
+    fun loadLastTab(): LibraryTab {
+        val name = prefs.getString(KEY_LAST_TAB, null) ?: return LibraryTab.Songs
+        return runCatching { LibraryTab.valueOf(name) }.getOrDefault(LibraryTab.Songs)
+    }
+
+    fun setLastTab(t: LibraryTab) {
+        prefs.edit().putString(KEY_LAST_TAB, t.name).apply()
+    }
+
+    /** -1 means "no folder selected". */
+    fun loadLastFolderId(): Long = prefs.getLong(KEY_LAST_FOLDER, -1L)
+
+    fun setLastFolderId(id: Long?) {
+        prefs.edit().putLong(KEY_LAST_FOLDER, id ?: -1L).apply()
+    }
+
+    fun loadLastStreamSource(): StreamSource {
+        val name = prefs.getString(KEY_LAST_SOURCE, null) ?: return StreamSource.YouTube
+        return runCatching { StreamSource.valueOf(name) }.getOrDefault(StreamSource.YouTube)
+    }
+
+    fun setLastStreamSource(s: StreamSource) {
+        prefs.edit().putString(KEY_LAST_SOURCE, s.name).apply()
+    }
+
+    data class LastPlayback(val queueIds: List<Long>, val index: Int, val positionMs: Long)
+
+    fun saveLastPlayback(queueIds: List<Long>, index: Int, positionMs: Long) {
+        if (queueIds.isEmpty()) {
+            clearLastPlayback()
+            return
+        }
+        prefs.edit()
+            .putString(KEY_LAST_QUEUE, queueIds.take(MAX_QUEUE).joinToString(","))
+            .putInt(KEY_LAST_INDEX, index)
+            .putLong(KEY_LAST_POS, positionMs)
+            .apply()
+    }
+
+    fun clearLastPlayback() {
+        prefs.edit()
+            .remove(KEY_LAST_QUEUE)
+            .remove(KEY_LAST_INDEX)
+            .remove(KEY_LAST_POS)
+            .apply()
+    }
+
+    fun loadLastPlayback(): LastPlayback? {
+        val raw = prefs.getString(KEY_LAST_QUEUE, null)?.takeIf { it.isNotBlank() } ?: return null
+        val ids = raw.split(",").mapNotNull { it.toLongOrNull() }
+        if (ids.isEmpty()) return null
+        val index = prefs.getInt(KEY_LAST_INDEX, 0).coerceIn(0, ids.size - 1)
+        val pos = prefs.getLong(KEY_LAST_POS, 0L).coerceAtLeast(0L)
+        return LastPlayback(ids, index, pos)
+    }
+
     private fun loadSort(): SortBy {
         val name = prefs.getString(KEY_SORT, null) ?: return SortBy.Title
         return runCatching { SortBy.valueOf(name) }.getOrDefault(SortBy.Title)
@@ -79,6 +139,13 @@ class SettingsStore private constructor(context: Context) {
         private const val KEY_ACCENT = "accent"
         private const val KEY_BG = "bg"
         private const val KEY_DYNAMIC = "dynamic"
+        private const val KEY_LAST_TAB = "last_tab"
+        private const val KEY_LAST_FOLDER = "last_folder"
+        private const val KEY_LAST_SOURCE = "last_source"
+        private const val KEY_LAST_QUEUE = "last_queue"
+        private const val KEY_LAST_INDEX = "last_index"
+        private const val KEY_LAST_POS = "last_pos"
+        private const val MAX_QUEUE = 2000
 
         @Volatile private var INSTANCE: SettingsStore? = null
 
