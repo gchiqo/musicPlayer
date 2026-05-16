@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,7 +98,6 @@ fun YoutubeTabContent(
     onDownloadAudio: (YoutubeVideo) -> Unit,
     onDownloadVideo: (YoutubeVideo) -> Unit,
     onLoadMore: () -> Unit,
-    onOpenSettings: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -114,7 +112,8 @@ fun YoutubeTabContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    // Clear the floating settings gear pinned top-left.
+                    .padding(start = 44.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextField(
@@ -193,14 +192,6 @@ fun YoutubeTabContent(
                         contentDescription = "View",
                         tint = if (gridView) MaterialTheme.colorScheme.onBackground
                         else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
-                    )
-                }
-                IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
                     )
                 }
             }

@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -26,22 +27,29 @@ fun MusicPlayerTheme(
 
     val tertiary = complementaryColor(accent)
 
+    // Pick black or white per surface based on its luminance so icons and text
+    // stay legible whatever accent/background the user (or album art) sets —
+    // a fixed white-on-X scheme vanishes on light accents/backgrounds.
+    val onAccent = contrastOn(accent)
+    val onBg = contrastOn(background)
+    val onCard = contrastOn(Charcoal)
+
     val scheme = darkColorScheme(
         primary = accent,
-        onPrimary = Color.Black,
+        onPrimary = onAccent,
         primaryContainer = SurfaceCardElevated,
-        onPrimaryContainer = SoftWhite,
+        onPrimaryContainer = onCard,
         secondary = accent,
-        onSecondary = Color.Black,
+        onSecondary = onAccent,
         tertiary = tertiary,
-        onTertiary = Color.Black,
+        onTertiary = contrastOn(tertiary),
         background = background,
-        onBackground = SoftWhite,
+        onBackground = onBg,
         surface = Charcoal,
-        onSurface = SoftWhite,
+        onSurface = onCard,
         surfaceVariant = SurfaceCard,
-        onSurfaceVariant = MutedLavender,
-        outline = MutedLavender,
+        onSurfaceVariant = onCard.copy(alpha = 0.66f),
+        outline = onCard.copy(alpha = 0.66f),
     )
 
     MaterialTheme(
@@ -50,6 +58,10 @@ fun MusicPlayerTheme(
         content = content,
     )
 }
+
+/** Near-black on light surfaces, near-white on dark ones, for max legibility. */
+private fun contrastOn(surface: Color): Color =
+    if (surface.luminance() > 0.45f) Color(0xFF0B0B0B) else SoftWhite
 
 private fun complementaryColor(accent: Color): Color {
     val r = accent.red

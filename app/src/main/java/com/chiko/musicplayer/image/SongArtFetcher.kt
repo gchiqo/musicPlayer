@@ -14,6 +14,8 @@ import coil.request.Options
 import com.chiko.musicplayer.audio.extractEmbeddedPicture
 import com.chiko.musicplayer.data.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okio.Buffer
 import okio.buffer
@@ -24,15 +26,24 @@ class SongArtFetcher(
     private val context: Context,
 ) : Fetcher {
 
+    // MediaMetadataRetriever.setDataSource opens and parses each media file —
+    // expensive. A fast fling can fan out dozens of these onto Dispatchers.IO
+    // at once, thrashing disk/CPU and dropping frames on cheap phones. Cap the
+    // number that run concurrently so scrolling stays smooth; off-screen
+    // requests are cancelled by Coil while they wait on the permit.
     override suspend fun fetch(): FetchResult? = withContext(Dispatchers.IO) {
+        extractionLimit.withPermit { fetchInner() }
+    }
+
+    private fun fetchInner(): FetchResult? {
         extractEmbeddedPicture(context, song.uri)?.let { bytes ->
-            return@withContext SourceResult(
+            return SourceResult(
                 source = ImageSource(Buffer().apply { write(bytes) }, context),
                 mimeType = null,
                 dataSource = DataSource.DISK,
             )
         }
-        albumArt()
+        return albumArt()
     }
 
     private fun albumArt(): SourceResult? {
@@ -57,6 +68,9 @@ class SongArtFetcher(
 
     private companion object {
         val ALBUM_ART: Uri = Uri.parse("content://media/external/audio/albumart")
+
+        // Shared across every fetcher instance — the cap is process-wide.
+        val extractionLimit = Semaphore(4)
     }
 }
 

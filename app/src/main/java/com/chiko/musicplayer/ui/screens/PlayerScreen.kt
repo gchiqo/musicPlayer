@@ -1,6 +1,7 @@
 package com.chiko.musicplayer.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -438,7 +439,8 @@ private fun Controls(
             Icon(
                 imageVector = Icons.Rounded.Shuffle,
                 contentDescription = "Shuffle",
-                tint = if (shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (shuffle) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
                 modifier = Modifier.size(26.dp),
             )
         }
@@ -454,14 +456,21 @@ private fun Controls(
             modifier = Modifier
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
+                .background(MaterialTheme.colorScheme.primary)
+                // Keeps the button distinguishable even when the accent is
+                // close to the page background.
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
+                    shape = CircleShape,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             IconButton(onClick = onPlayPause, modifier = Modifier.fillMaxSize()) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = MaterialTheme.colorScheme.background,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(40.dp),
                 )
             }
@@ -480,7 +489,7 @@ private fun Controls(
                     Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                 contentDescription = "Repeat",
                 tint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
                 modifier = Modifier.size(26.dp),
             )
         }

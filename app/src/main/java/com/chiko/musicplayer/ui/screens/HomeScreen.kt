@@ -195,7 +195,6 @@ fun HomeScreen(
                     sortBy = sortBy,
                     onSortChange = onSortChange,
                     onOpenSearch = onOpenSearch,
-                    onOpenSettings = onOpenSettings,
                     showSort = showSort,
                     streamSource = streamSource,
                     onCycleStreamSource = { onStreamSourceChange(nextStreamSource(streamSource)) },
@@ -210,7 +209,6 @@ fun HomeScreen(
                         showSort = true,
                         showSearch = true,
                         onOpenSearch = onOpenSearch,
-                        onOpenSettings = onOpenSettings,
                         showEdit = true,
                         onEnterEditMode = { onEnterEditMode(-1L) },
                     )
@@ -231,7 +229,6 @@ fun HomeScreen(
                             showSort = showSort,
                             showSearch = true,
                             onOpenSearch = onOpenSearch,
-                            onOpenSettings = onOpenSettings,
                             showEdit = tab == LibraryTab.Songs,
                             onEnterEditMode = { onEnterEditMode(-1L) },
                         )
@@ -270,7 +267,6 @@ fun HomeScreen(
                     onDownloadAudio = onYoutubeDownloadAudio,
                     onDownloadVideo = onYoutubeDownloadVideo,
                     onLoadMore = onYoutubeLoadMore,
-                    onOpenSettings = onOpenSettings,
                     contentPadding = contentPadding,
                 )
                 else -> SongContent(
@@ -287,6 +283,29 @@ fun HomeScreen(
                     onLongPress = { song -> if (!editMode) onEnterEditMode(song.id) },
                     folderId = selectedFolder?.id,
                     onReorder = onReorder,
+                )
+            }
+        }
+
+        // Settings floats flush in the top-left corner (only offset down past
+        // the status bar so it stays tappable). Hidden in edit/search modes
+        // where a back/close control already owns that corner.
+        if (!editMode && !searchActive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = contentPadding.calculateTopPadding())
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
+                    .clickable(onClick = onOpenSettings),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                    modifier = Modifier.size(19.dp),
                 )
             }
         }
@@ -376,7 +395,6 @@ private fun CompactBrowseHeader(
     sortBy: SortBy,
     onSortChange: (SortBy) -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenSettings: () -> Unit,
     showSort: Boolean,
     streamSource: com.chiko.musicplayer.youtube.StreamSource = com.chiko.musicplayer.youtube.StreamSource.YouTube,
     onCycleStreamSource: () -> Unit = {},
@@ -384,7 +402,8 @@ private fun CompactBrowseHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            // Leave room for the floating settings gear pinned top-left.
+            .padding(start = 44.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
@@ -436,14 +455,6 @@ private fun CompactBrowseHeader(
                 )
             }
         }
-        IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-        }
     }
 }
 
@@ -460,7 +471,8 @@ private fun CompactFolderHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            // Clear the floating settings gear pinned top-left.
+            .padding(start = 44.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
@@ -550,7 +562,8 @@ private fun FolderHeader(folder: Folder, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 12.dp),
+            // Clear the floating settings gear pinned top-left.
+            .padding(start = 44.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
@@ -692,7 +705,6 @@ private fun ToolbarRow(
     showSort: Boolean,
     showSearch: Boolean,
     onOpenSearch: () -> Unit,
-    onOpenSettings: () -> Unit,
     showEdit: Boolean = false,
     onEnterEditMode: () -> Unit = {},
 ) {
@@ -729,17 +741,6 @@ private fun ToolbarRow(
                 imageVector = if (viewMode == ViewMode.List) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList,
                 contentDescription = if (viewMode == ViewMode.List) "Grid view" else "List view",
                 tint = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-        IconButton(
-            onClick = onOpenSettings,
-            modifier = Modifier.size(32.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
             )
         }
     }
